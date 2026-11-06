@@ -1,0 +1,122 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A new push to the same branch cancels the run that is now outdated.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - 'frontend/openapi/**'
+              - '.editorconfig'
+              - '.github/workflows/ci.yml'
+            frontend:
+              - 'frontend/**'
+              - '.editorconfig'
+              - '.github/workflows/ci.yml'
+
+  backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v6
+      # check = compile (warnings as errors) + ktlint + detekt + all tests, including
+      # Testcontainers integration tests, Konsist and the OpenAPI contract check.
+      # It does not build the jar, so the frontend is not built twice.
+      - run: ./gradlew check --no-daemon
+      # Test, lint and JaCoCo coverage reports (testing standard: coverage is measured in CI).
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-reports
+          path: backend/build/reports/
+
+  frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      # openapi-generator runs on the JVM.
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+      - run: npm ci
+      # Blocks on vulnerabilities in what ships to the browser. Dev tooling (e.g. openapi-generator-cli)
+      # is kept up to date by Dependabot instead, so a CLI-only advisory does not block every PR.
+      - run: npm audit --omit=dev --audit-level=high
+      - name: Generated API client is in sync with the OpenAPI spec
+        run: |
+          npm run generate:api
+          if [ -n "$(git status --porcelain -- src/app/core/api/generated)" ]; then
+            git status --short -- src/app/core/api/generated
+            echo "::error::Generated API client is out of date. Run 'npm run generate:api' and commit the result."
+            exit 1
+          fi
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run test:ci
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-coverage
+          path: frontend/coverage/
+      - run: npm run build
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Fails a PR that adds a dependency with a known high-severity vulnerability (all ecosystems).
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/dependency-review-action@v5
+        with:
+          fail-on-severity: high

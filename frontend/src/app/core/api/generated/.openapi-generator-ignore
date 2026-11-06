@@ -1,0 +1,4 @@
+# Files we do not want from the generator (it never overwrites this file).
+git_push.sh
+README.md
+.gitignore

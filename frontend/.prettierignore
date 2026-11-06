@@ -1,0 +1,8 @@
+dist
+node_modules
+.angular
+coverage
+# Generated from the OpenAPI spec; formatted by the generator.
+src/app/core/api/generated
+# Written by the backend (OpenApiContractIT) and compared as JSON there.
+openapi

@@ -1,0 +1,48 @@
+{
+  "openapi" : "3.1.0",
+  "info" : {
+    "title" : "Sluice API",
+    "description" : "Integration platform between webshop, warehouse and ERP.",
+    "version" : "v1"
+  },
+  "servers" : [ {
+    "url" : "/",
+    "description" : "Same origin as the web app (ADR 0005)"
+  } ],
+  "paths" : {
+    "/api/app-info" : {
+      "get" : {
+        "tags" : [ "System" ],
+        "operationId" : "getAppInfo",
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AppInfoResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components" : {
+    "schemas" : {
+      "AppInfoResponse" : {
+        "type" : "object",
+        "properties" : {
+          "name" : {
+            "type" : "string"
+          },
+          "version" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "name", "version" ]
+      }
+    }
+  }
+}

@@ -1,0 +1,9 @@
+# Runs the database migrations and exits: no web server, so the JVM stops when Flyway is done.
+#   ./gradlew bootRun --args='--spring.profiles.active=migrate'
+#   docker run ... -e SPRING_PROFILES_ACTIVE=prod,migrate sluice
+spring:
+  main:
+    web-application-type: none
+sluice:
+  database:
+    migrate-on-startup: true

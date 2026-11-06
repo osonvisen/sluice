@@ -1,0 +1,7 @@
+# Builds on detekt's default rules (buildUponDefaultConfig = true); only deviations are listed.
+config:
+  warningsAsErrors: true
+
+style:
+  MaxLineLength:
+    maxLineLength: 140

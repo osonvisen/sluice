@@ -1,0 +1,61 @@
+spring:
+  application:
+    name: sluice
+  datasource:
+    url: ${SLUICE_DB_URL:jdbc:postgresql://localhost:5432/sluice}
+    username: ${SLUICE_DB_USER:sluice}
+    password: ${SLUICE_DB_PASSWORD:sluice}
+  flyway:
+    locations: classpath:db/migration
+  messages:
+    basename: i18n/messages
+    # Without this, a server running with a Norwegian system locale would answer
+    # unsupported languages in Norwegian instead of the English fallback.
+    fallback-to-system-locale: false
+    encoding: UTF-8
+  mvc:
+    problemdetails:
+      enabled: true
+  threads:
+    virtual:
+      enabled: true
+
+server:
+  shutdown: graceful
+  error:
+    include-stacktrace: never
+    include-message: never
+
+# /health/live and /health/ready (ADR 0005 keeps actuator outside /api/**).
+management:
+  endpoints:
+    web:
+      base-path: /
+      path-mapping:
+        health: health
+      exposure:
+        include: health
+      discovery:
+        enabled: false
+  endpoint:
+    health:
+      show-details: never
+      group:
+        live:
+          include: livenessState
+        ready:
+          include: readinessState,db
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+
+springdoc:
+  paths-to-match: /api/**
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  pattern:
+    correlation: "[%X{correlationId:-}] "

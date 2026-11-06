@@ -1,0 +1,17 @@
+{
+  "app": {
+    "title": "Sluice",
+    "skipToContent": "Skip to main content",
+    "version": "Version {{version}}",
+    "versionUnavailable": "Version unavailable"
+  },
+  "language": {
+    "label": "Language",
+    "en": "English",
+    "nb": "Norsk bokmål"
+  },
+  "home": {
+    "heading": "Welcome to Sluice",
+    "intro": "Sluice moves orders and product data between the webshop, the warehouse and the ERP. Job overview, products and approvals are on their way."
+  }
+}

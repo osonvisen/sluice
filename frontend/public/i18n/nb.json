@@ -1,0 +1,17 @@
+{
+  "app": {
+    "title": "Sluice",
+    "skipToContent": "Hopp til hovedinnhold",
+    "version": "Versjon {{version}}",
+    "versionUnavailable": "Versjonen er ikke tilgjengelig"
+  },
+  "language": {
+    "label": "Språk",
+    "en": "English",
+    "nb": "Norsk bokmål"
+  },
+  "home": {
+    "heading": "Velkommen til Sluice",
+    "intro": "Sluice flytter ordrer og produktdata mellom nettbutikken, lageret og ERP-systemet. Joboversikt, produkter og godkjenninger kommer snart."
+  }
+}

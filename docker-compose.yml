@@ -1,0 +1,40 @@
+# Local development only. The credentials below are dev defaults, not secrets: override them
+# in a git-ignored .env file if you like. Production configuration comes from the environment.
+#
+#   docker compose up                    → Postgres only
+#   docker compose --profile auth up     → Postgres + Keycloak (only when working on login)
+
+services:
+  postgres:
+    image: postgres:18.6-alpine
+    environment:
+      POSTGRES_DB: sluice
+      POSTGRES_USER: ${SLUICE_DB_USER:-sluice}
+      POSTGRES_PASSWORD: ${SLUICE_DB_PASSWORD:-sluice}
+    ports:
+      - "5432:5432"
+    volumes:
+      # Postgres 18 images keep data in a versioned subfolder of /var/lib/postgresql.
+      - postgres-data:/var/lib/postgresql
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Realm, users, roles and the MCP client are added in milestone 3 (ADR 0004).
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.2
+    profiles: ["auth"]
+    command: ["start-dev"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      JAVA_OPTS_KC_HEAP: "-Xmx512m"
+    ports:
+      - "8081:8080"
+    mem_limit: 768m
+
+volumes:
+  postgres-data:

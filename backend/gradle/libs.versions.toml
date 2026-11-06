@@ -1,0 +1,23 @@
+[versions]
+# Kotlin is kept on the version Spring Boot manages (kotlin-bom in the Boot BOM) so the
+# compiler plugin and stdlib/reflect never drift apart.
+kotlin = "2.3.21"
+spring-boot = "4.1.2"
+spring-dependency-management = "1.1.7"
+springdoc = "3.2.0"
+konsist = "0.18.1"
+detekt = "2.0.0-alpha.6"
+ktlint-gradle = "14.2.0"
+ktlint-cli = "1.8.0"
+
+[libraries]
+springdoc-webmvc-ui = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springdoc" }
+konsist = { module = "com.lemonappdev:konsist", version.ref = "konsist" }
+
+[plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-spring = { id = "org.jetbrains.kotlin.plugin.spring", version.ref = "kotlin" }
+spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
+spring-dependency-management = { id = "io.spring.dependency-management", version.ref = "spring-dependency-management" }
+detekt = { id = "dev.detekt", version.ref = "detekt" }
+ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlint-gradle" }

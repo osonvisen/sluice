@@ -1,0 +1,19 @@
+# Private notes (code review document). Never committed.
+notater/
+
+# Local environment
+.env
+.idea/
+*.iml
+.DS_Store
+
+# Backend
+backend/.gradle/
+backend/build/
+backend/.kotlin/
+backend/bin/
+backend/out/
+
+# Frontend (frontend/.gitignore covers the rest)
+frontend/node_modules/
+frontend/dist/

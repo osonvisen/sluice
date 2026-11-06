@@ -1,0 +1,6 @@
+# Production. Set by the Docker image (SPRING_PROFILES_ACTIVE=prod).
+logging:
+  structured:
+    # JSON log lines (Elastic Common Schema). MDC values such as correlationId are included.
+    format:
+      console: ecs

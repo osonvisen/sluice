@@ -1,0 +1,34 @@
+<ng-container *transloco="let t">
+  <a class="skip-link" href="#main">{{ t('app.skipToContent') }}</a>
+
+  <mat-toolbar class="toolbar">
+    <a class="brand" routerLink="/">{{ t('app.title') }}</a>
+    <span class="spacer"></span>
+    <mat-form-field class="language" subscriptSizing="dynamic" appearance="outline">
+      <mat-label>{{ t('language.label') }}</mat-label>
+      <mat-select
+        [value]="language()"
+        (valueChange)="changeLanguage($event)"
+        data-testid="language-select"
+      >
+        @for (option of languages; track option) {
+          <mat-option [value]="option" [attr.lang]="option">{{
+            t('language.' + option)
+          }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+  </mat-toolbar>
+
+  <main id="main" class="content" tabindex="-1">
+    <router-outlet />
+  </main>
+
+  <footer class="footer">
+    @if (appInfo(); as info) {
+      <span data-testid="app-version">{{ t('app.version', { version: info.version }) }}</span>
+    } @else if (appInfo() === null) {
+      <span data-testid="app-version">{{ t('app.versionUnavailable') }}</span>
+    }
+  </footer>
+</ng-container>

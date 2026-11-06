@@ -1,0 +1,20 @@
+{
+  "$schema": "./node_modules/@openapitools/openapi-generator-cli/config.schema.json",
+  "spaces": 2,
+  "generator-cli": {
+    "version": "7.27.0",
+    "generators": {
+      "sluice": {
+        "generatorName": "typescript-angular",
+        "inputSpec": "openapi/sluice-api.json",
+        "output": "src/app/core/api/generated",
+        "additionalProperties": {
+          "fileNaming": "kebab-case",
+          "stringEnums": true,
+          "useSingleRequestParameter": true,
+          "providedIn": "root"
+        }
+      }
+    }
+  }
+}
