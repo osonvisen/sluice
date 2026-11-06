@@ -47,6 +47,7 @@ class ProblemDetailFactory(
             is AppError.NotFound -> HttpStatus.NOT_FOUND
             is AppError.Validation -> HttpStatus.BAD_REQUEST
             is AppError.Conflict -> HttpStatus.CONFLICT
+            is AppError.PreconditionFailed -> HttpStatus.PRECONDITION_FAILED
             is AppError.RuleViolation -> HttpStatus.UNPROCESSABLE_CONTENT
         }
 

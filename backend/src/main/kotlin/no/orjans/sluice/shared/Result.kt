@@ -35,6 +35,12 @@ inline fun <T, R> Result<T>.flatMap(transform: (T) -> Result<R>): Result<R> =
         is Result.Failure -> this
     }
 
+fun <T> Result<T>.valueOrNull(): T? =
+    when (this) {
+        is Result.Success -> value
+        is Result.Failure -> null
+    }
+
 inline fun <T, R> Result<T>.fold(
     onSuccess: (T) -> R,
     onFailure: (AppError) -> R,

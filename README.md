@@ -17,7 +17,7 @@ docker compose up -d                      # Postgres only (Keycloak: --profile a
 
 cd backend
 ./gradlew bootRun --args='--spring.profiles.active=migrate'   # run migrations, then exits
-./gradlew bootRun                         # API on http://localhost:8080
+SLUICE_SHOPIFY_WEBHOOK_SECRET=local-dev-secret ./gradlew bootRun   # API on http://localhost:8080
 cd ../frontend && npm ci && npm start     # UI on http://localhost:4200, proxies /api to :8080
 ```
 

@@ -49,6 +49,8 @@ services:
       SLUICE_DB_URL: jdbc:postgresql://postgres:5432/sluice
       SLUICE_DB_USER: ${SLUICE_DB_USER:-sluice}
       SLUICE_DB_PASSWORD: ${SLUICE_DB_PASSWORD:-sluice}
+      # Dev-only default; override in .env. The real secret comes from the environment in production.
+      SLUICE_SHOPIFY_WEBHOOK_SECRET: ${SLUICE_SHOPIFY_WEBHOOK_SECRET:-local-dev-secret}
     ports:
       - "8080:8080"
     depends_on:

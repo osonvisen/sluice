@@ -53,6 +53,27 @@ class ArchitectureTest {
     }
 
     @Test
+    fun `rest controllers are endpoint classes named after their use case`() {
+        productionFiles
+            .flatMap { it.classes() }
+            .filter { it.hasAnnotationWithName("RestController") }
+            .assertTrue { it.name.endsWith("Endpoint") }
+    }
+
+    // getOrThrow() turns an expected error into an exception. That is only acceptable on the HTTP edge
+    // (ADR 0008): handlers and domain code must pass Result on, never throw it.
+    @Test
+    fun `only endpoint classes call getOrThrow`() {
+        productionFiles
+            .filter { it.text.contains(GET_OR_THROW_CALL) }
+            .filterNot { it.packageName == WEB && it.name == "ResultResponses" }
+            .assertTrue { file ->
+                val classes = file.classes()
+                classes.isNotEmpty() && classes.all { it.name.endsWith("Endpoint") && it.hasAnnotationWithName("RestController") }
+            }
+    }
+
+    @Test
     fun `production code uses jackson 3, jackson 2 is only a springdoc dependency`() {
         productionFiles.assertTrue { file -> file.imports.none { import -> JACKSON_2_PREFIXES.any { import.name.startsWith(it) } } }
     }
@@ -78,6 +99,7 @@ class ArchitectureTest {
         const val WEB = "$BASE.web"
         const val SHARED = "$BASE.shared"
         const val INFRASTRUCTURE = "$BASE.infrastructure"
+        const val GET_OR_THROW_CALL = ".getOrThrow()"
         val TOP_LEVEL_PACKAGES = listOf(FEATURES, WEB, SHARED, INFRASTRUCTURE)
 
         // com.fasterxml.jackson.annotation is not listed: Jackson 3 still uses those annotations.

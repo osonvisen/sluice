@@ -7,3 +7,6 @@ spring:
 sluice:
   database:
     migrate-on-startup: true
+  jobs:
+    worker:
+      enabled: false

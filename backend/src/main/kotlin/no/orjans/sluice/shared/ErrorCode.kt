@@ -23,6 +23,7 @@ value class ErrorCode(
         val NOT_FOUND = ErrorCode("not-found")
         val VALIDATION_FAILED = ErrorCode("validation-failed")
         val CONFLICT = ErrorCode("conflict")
+        val PRECONDITION_FAILED = ErrorCode("precondition-failed")
         val INTERNAL_ERROR = ErrorCode("internal-error")
     }
 }

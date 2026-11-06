@@ -14,6 +14,9 @@ The architecture decisions are in `docs/adr/`:
 - **0006:** stack, versions and language support (`en` + `nb`)
 - **0007:** detekt 2.0 alpha, because detekt 1.x does not run on JDK 25
 - **0008:** top-level `web/` package for the HTTP edge (Result → HTTP, ProblemDetail, ETag, idempotency); `infrastructure/` is adapters and config only
+- **0009:** job status model: `FAILED` = will retry, `DEAD` = gave up, with `dead_reason` (`PERMANENT | EXHAUSTED`)
+
+ADR numbers are not reserved in advance; a new decision takes the next free number.
 
 New decisions are recorded as a new ADR. Don't change an accepted ADR. Supersede it with a new one instead.
 
