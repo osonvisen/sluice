@@ -15,6 +15,7 @@ import org.springframework.http.client.JdkClientHttpRequestFactory
 import org.springframework.stereotype.Component
 import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.HttpServerErrorException
+import org.springframework.web.client.HttpStatusCodeException
 import org.springframework.web.client.ResourceAccessException
 import org.springframework.web.client.RestClient
 import org.springframework.web.client.RestClientException
@@ -31,9 +32,10 @@ import java.time.format.DateTimeParseException
  * The ERP over HTTP (`POST /api/orders`). Maps the ERP's answers to the port's results:
  * - 2xx → [ErpSendResult.Accepted] (201 first time, 200 when the ERP replays an earlier result)
  * - 408, 409, 429 → [ErpSendResult.Unavailable]: "not now", not "no". 409 can mean the same
- *   idempotency key is still being processed; 429 may carry `Retry-After`, which is passed on.
+ *   idempotency key is still being processed.
  * - Other 4xx → [ErpSendResult.Rejected], with the ERP's line errors when it sends them
  * - 5xx, timeout, connection error, unreadable answer → [ErpSendResult.Unavailable]
+ * - `Retry-After` on 429 (RFC 6585) and 503 (RFC 9110) is passed on.
  */
 @Component
 @EnableConfigurationProperties(ErpProperties::class)
@@ -98,7 +100,7 @@ class HttpErpOrderSender(
                 ErpSendResult.Rejected(lineErrors(ex))
             }
         } catch (ex: HttpServerErrorException) {
-            ErpSendResult.Unavailable("HTTP ${ex.statusCode.value()} from the ERP")
+            ErpSendResult.Unavailable("HTTP ${ex.statusCode.value()} from the ERP", retryAfter(ex))
         } catch (ex: ResourceAccessException) {
             log.warn("ERP did not answer: orderId={}", order.orderReference, ex)
             ErpSendResult.Unavailable("No answer from the ERP (timeout or connection error)")
@@ -109,15 +111,16 @@ class HttpErpOrderSender(
         }
 
     /**
-     * `Retry-After` on a 429: seconds ("120") or an HTTP date. Anything else is ignored, and the
-     * worker's own backoff applies. A date in the past means "now".
+     * `Retry-After` on a 429 or 503: seconds ("120") or an HTTP date. On other statuses, and for any
+     * other value, it is ignored and the worker's own backoff applies. A date in the past means "now".
+     * The worker caps it at max-backoff.
      */
-    private fun retryAfter(ex: HttpClientErrorException): Duration? {
+    private fun retryAfter(ex: HttpStatusCodeException): Duration? {
         val value =
             ex.responseHeaders
                 ?.getFirst(HttpHeaders.RETRY_AFTER)
                 ?.trim()
-                ?.takeIf { ex.statusCode.value() == HttpStatus.TOO_MANY_REQUESTS.value() }
+                ?.takeIf { ex.statusCode.value() in STATUSES_WITH_RETRY_AFTER }
                 ?: return null
         return value.toLongOrNull()?.let { Duration.ofSeconds(it.coerceAtLeast(0)) }
             ?: httpDateOrNull(value)?.let { Duration.between(clock.instant(), it).coerceAtLeast(Duration.ZERO) }
@@ -154,6 +157,8 @@ class HttpErpOrderSender(
     private companion object {
         const val ORDERS_PATH = "/api/orders"
         const val IDEMPOTENCY_KEY_HEADER = "Idempotency-Key"
+
+        val STATUSES_WITH_RETRY_AFTER = setOf(HttpStatus.TOO_MANY_REQUESTS.value(), HttpStatus.SERVICE_UNAVAILABLE.value())
 
         // Client errors that mean "not now" rather than "no", with the wording shown to operators.
         val RETRYABLE_CLIENT_ERRORS =

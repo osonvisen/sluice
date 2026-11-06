@@ -154,6 +154,31 @@ class OrderFlowIT {
     }
 
     @Test
+    fun `503 with a retry-after longer than max backoff waits only max backoff`() {
+        receive()
+        erp.failNextWith(
+            503,
+            mapOf(
+                "Retry-After" to
+                    properties.maxBackoff
+                        .multipliedBy(3)
+                        .seconds
+                        .toString(),
+            ),
+        )
+
+        worker.runOnce()
+
+        assertThat(state()).containsEntry("job_status", "FAILED").containsEntry("last_error", "ERP unavailable: HTTP 503 from the ERP")
+        assertThat(nextRunAt()).isEqualTo(MutableClock.START.plus(properties.maxBackoff))
+
+        clock.advance(properties.maxBackoff)
+        worker.runOnce()
+        assertThat(state()).containsEntry("order_status", "IMPORTED")
+        assertThat(erp.ordersCreated()).isEqualTo(1)
+    }
+
+    @Test
     fun `409 from the erp is temporary, and the retry imports the order once`() {
         receive()
         erp.failNextWith(409)

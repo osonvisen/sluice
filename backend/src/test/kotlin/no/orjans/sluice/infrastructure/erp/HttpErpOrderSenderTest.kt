@@ -183,9 +183,27 @@ class HttpErpOrderSenderTest {
     }
 
     @Test
-    fun `retry-after is only read on 429`() {
+    fun `503 with retry-after passes the wait on, in seconds or as an http date`() {
         stubWithHeader(503, "Retry-After", "120")
+        assertThat(sender().send(order)).isEqualTo(ErpSendResult.Unavailable("HTTP 503 from the ERP", Duration.ofSeconds(120)))
 
+        stubWithHeader(503, "Retry-After", "Fri, 06 Nov 2026 09:05:00 GMT")
+        assertThat((sender().send(order) as ErpSendResult.Unavailable).retryAfter).isEqualTo(Duration.ofMinutes(5))
+    }
+
+    @Test
+    fun `503 without retry-after leaves the wait to our backoff`() {
+        stub(503, "{}")
+
+        assertThat((sender().send(order) as ErpSendResult.Unavailable).retryAfter).isNull()
+    }
+
+    @Test
+    fun `retry-after is ignored on statuses other than 429 and 503`() {
+        stubWithHeader(500, "Retry-After", "120")
+        assertThat((sender().send(order) as ErpSendResult.Unavailable).retryAfter).isNull()
+
+        stubWithHeader(408, "Retry-After", "120")
         assertThat((sender().send(order) as ErpSendResult.Unavailable).retryAfter).isNull()
     }
 
