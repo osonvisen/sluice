@@ -1,0 +1,13 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "/api/orders",
+    "headers": { "Idempotency-Key": { "matches": ".+" } }
+  },
+  "response": {
+    "status": 201,
+    "headers": { "Content-Type": "application/json" },
+    "body": "{\"orderNumber\":\"ERP-{{request.headers.Idempotency-Key}}\",\"lines\":[]}",
+    "transformers": ["response-template"]
+  }
+}

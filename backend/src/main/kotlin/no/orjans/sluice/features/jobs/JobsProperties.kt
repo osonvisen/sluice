@@ -2,6 +2,7 @@ package no.orjans.sluice.features.jobs
 
 import org.springframework.boot.context.properties.ConfigurationProperties
 import java.time.Duration
+import java.util.random.RandomGenerator
 
 @ConfigurationProperties("sluice.jobs")
 data class JobsProperties(
@@ -11,6 +12,11 @@ data class JobsProperties(
     val initialBackoff: Duration,
     /** Upper bound for the wait between attempts. */
     val maxBackoff: Duration,
+    /**
+     * Spread on each backoff, as a fraction: 0.2 gives ±20 %. Jobs that failed together (an ERP outage)
+     * then retry spread out instead of all in the same second (ADR 0010).
+     */
+    val backoffJitter: Double,
     /** How long a worker may hold a job before it counts as crashed and the job is picked up again. */
     val lease: Duration,
     /** Jobs claimed per poll. */
@@ -22,16 +28,41 @@ data class JobsProperties(
         require(
             !initialBackoff.isNegative && initialBackoff <= maxBackoff,
         ) { "sluice.jobs: initial-backoff must be between 0 and max-backoff" }
+        require(backoffJitter >= 0.0 && backoffJitter < 1.0) { "sluice.jobs.backoff-jitter must be in [0, 1)" }
         require(lease.isPositive) { "sluice.jobs.lease must be positive" }
         require(batchSize >= 1) { "sluice.jobs.batch-size must be at least 1" }
     }
 
-    /** Exponential backoff: initial, 2×, 4×, … capped at [maxBackoff]. [failedAttempts] starts at 1. */
-    fun backoffAfter(failedAttempts: Int): Duration {
+    /**
+     * Exponential backoff with jitter: initial, 2×, 4×, … each ± [backoffJitter], capped at [maxBackoff].
+     * [failedAttempts] starts at 1. [random] is injected so tests can fix it.
+     */
+    fun backoffAfter(
+        failedAttempts: Int,
+        random: RandomGenerator,
+    ): Duration {
         val doublings = (failedAttempts - 1).coerceIn(0, MAX_DOUBLINGS)
-        val delay = initialBackoff.multipliedBy(1L shl doublings)
-        return if (delay > maxBackoff) maxBackoff else delay
+        val exponential = minOf(initialBackoff.multipliedBy(1L shl doublings), maxBackoff)
+        // A factor in [1 - jitter, 1 + jitter). Double is fine here: this is a wait time, not money.
+        val factor = 1 + backoffJitter * (2 * random.nextDouble() - 1)
+        val jittered = Duration.ofMillis((exponential.toMillis() * factor).toLong())
+        return minOf(jittered, maxBackoff)
     }
+
+    /**
+     * The wait before the next attempt: the other side's [retryAfter] when it gave one (no jitter: it named
+     * a time), otherwise [backoffAfter]. Never longer than [maxBackoff], never negative.
+     */
+    fun waitBeforeRetry(
+        failedAttempts: Int,
+        retryAfter: Duration?,
+        random: RandomGenerator,
+    ): Duration =
+        if (retryAfter == null) {
+            backoffAfter(failedAttempts, random)
+        } else {
+            retryAfter.coerceIn(Duration.ZERO, maxBackoff)
+        }
 
     data class Worker(
         /** Off in tests (they run the worker by hand) and in the `migrate` profile. */

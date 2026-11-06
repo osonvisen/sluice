@@ -9,6 +9,6 @@ class DatabaseCleaner(
     private val jdbc: JdbcClient,
 ) {
     fun clean() {
-        jdbc.sql("TRUNCATE order_lines, orders, job_attempts, jobs, scripted_job_writes CASCADE").update()
+        jdbc.sql("TRUNCATE job_line_log, order_lines, orders, job_attempts, jobs, scripted_job_writes CASCADE").update()
     }
 }

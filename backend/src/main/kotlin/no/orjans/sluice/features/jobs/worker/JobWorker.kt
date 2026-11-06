@@ -1,6 +1,7 @@
 package no.orjans.sluice.features.jobs.worker
 
 import no.orjans.sluice.features.jobs.DeadReason
+import no.orjans.sluice.features.jobs.JobContext
 import no.orjans.sluice.features.jobs.JobHandler
 import no.orjans.sluice.features.jobs.JobOutcome
 import no.orjans.sluice.features.jobs.JobType
@@ -11,12 +12,16 @@ import org.springframework.transaction.support.TransactionTemplate
 import tools.jackson.core.JacksonException
 import tools.jackson.databind.json.JsonMapper
 import java.time.Clock
+import java.util.random.RandomGenerator
 
 /**
  * Runs due jobs. Each call to [runOnce] is one poll:
- * 1. Expired leases (crashed workers) count as a failed attempt.
- * 2. Up to `batch-size` due jobs are claimed in one short transaction.
- * 3. Each job runs in its own transaction with its handler; the outcome decides the next status (ADR 0009).
+ * 1. Expired leases (crashed or stuck workers) count as a failed attempt.
+ * 2. **Claim**: up to `batch-size` due jobs in one short transaction. Each gets a lease, and its
+ *    version after the claim is the fencing token.
+ * 3. **Work**: each handler runs *without* a transaction (it may call the ERP).
+ * 4. **Finish**: one short transaction per job, that only changes anything if the fencing token
+ *    still matches. The outcome's effects are applied in the same transaction (ADR 0010).
  */
 @Component
 class JobWorker(
@@ -25,6 +30,7 @@ class JobWorker(
     private val transactions: TransactionTemplate,
     private val json: JsonMapper,
     private val clock: Clock,
+    private val random: RandomGenerator,
     private val properties: JobsProperties,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -41,59 +47,25 @@ class JobWorker(
         expireLeases()
         val now = clock.instant()
         val claimed = transactions.execute { queries.claimDue(now, now.plus(properties.lease), properties.batchSize) }
-        claimed.forEach(::run)
+        claimed.forEach { job -> finish(job, work(job)) }
         return claimed.size
     }
 
     private fun expireLeases() {
         transactions.executeWithoutResult {
-            val now = clock.instant()
-            queries.lockExpiredLeases(now, properties.batchSize).forEach { job ->
+            queries.lockExpiredLeases(clock.instant(), properties.batchSize).forEach { job ->
                 log.warn("Job lease expired: jobId={} type={} attempt={}", job.id, job.type, job.attempt)
                 recordFailure(job, JobOutcome.TemporaryFailure(LEASE_EXPIRED_REASON), AttemptOutcome.LEASE_EXPIRED)
             }
         }
     }
 
-    private fun run(job: ClaimedJob) {
-        val handler = handlersByType[job.type]
-        val outcome =
-            if (handler == null) {
-                JobOutcome.PermanentFailure("No handler for job type '${job.type}'")
-            } else {
-                runHandler(job, handler)
-            }
-        when (outcome) {
-            JobOutcome.Succeeded -> {
-                log.info("Job succeeded: jobId={} type={} attempt={}", job.id, job.type, job.attempt)
-            }
-
-            is JobOutcome.TemporaryFailure -> {
-                transactions.executeWithoutResult {
-                    recordFailure(
-                        job,
-                        outcome,
-                        AttemptOutcome.TEMPORARY_FAILURE,
-                    )
-                }
-            }
-
-            is JobOutcome.PermanentFailure -> {
-                transactions.executeWithoutResult {
-                    recordFailure(
-                        job,
-                        outcome,
-                        AttemptOutcome.PERMANENT_FAILURE,
-                    )
-                }
-            }
-        }
+    /** Step 2: no transaction here, so no connection or lock is held while a handler waits on the ERP. */
+    private fun work(job: ClaimedJob): JobOutcome {
+        val handler = handlersByType[job.type] ?: return JobOutcome.PermanentFailure("No handler for job type '${job.type}'")
+        return runHandler(job, handler)
     }
 
-    /**
-     * The handler's writes and `SUCCEEDED` commit together. Any other outcome rolls the handler's
-     * writes back; the failure is then recorded in a new transaction.
-     */
     private fun <T : Any> runHandler(
         job: ClaimedJob,
         handler: JobHandler<T>,
@@ -107,26 +79,7 @@ class JobWorker(
                 return JobOutcome.PermanentFailure("Payload could not be read as ${handler.payloadType.simpleName}")
             }
         return try {
-            transactions.execute { tx ->
-                val outcome = handler.handle(payload)
-                when {
-                    outcome != JobOutcome.Succeeded -> {
-                        tx.setRollbackOnly()
-                        outcome
-                    }
-
-                    queries.markSucceeded(job, clock.instant()) -> {
-                        outcome
-                    }
-
-                    else -> {
-                        // Our lease expired while the handler ran, and the job is someone else's now.
-                        tx.setRollbackOnly()
-                        log.warn("Job lost its lease before finishing, discarding result: jobId={}", job.id)
-                        JobOutcome.TemporaryFailure(LEASE_EXPIRED_REASON)
-                    }
-                }
-            }
+            handler.handle(payload, JobContext(job.id, job.attempt, job.attemptRowId))
         } catch (
             @Suppress("TooGenericExceptionCaught") ex: Exception,
         ) {
@@ -137,11 +90,52 @@ class JobWorker(
         }
     }
 
+    /**
+     * Step 3: the new status and the outcome's effects in one transaction, fenced by the claim's version.
+     * If the effects fail, the whole transaction rolls back and the job stays RUNNING until its lease
+     * expires: the same as a crash, and retried the same way.
+     */
+    private fun finish(
+        job: ClaimedJob,
+        outcome: JobOutcome,
+    ) {
+        try {
+            transactions.executeWithoutResult {
+                val owned =
+                    when (outcome) {
+                        is JobOutcome.Succeeded -> queries.markSucceeded(job, clock.instant())
+                        is JobOutcome.TemporaryFailure -> recordFailure(job, outcome, AttemptOutcome.TEMPORARY_FAILURE)
+                        is JobOutcome.PermanentFailure -> recordFailure(job, outcome, AttemptOutcome.PERMANENT_FAILURE)
+                    }
+                if (owned) {
+                    outcome.effects.apply()
+                    if (outcome is JobOutcome.Succeeded) {
+                        log.info(
+                            "Job succeeded: jobId={} type={} attempt={}",
+                            job.id,
+                            job.type,
+                            job.attempt,
+                        )
+                    }
+                } else {
+                    // Our lease expired while the handler ran, and the job is someone else's now.
+                    log.warn("Job no longer owned when finishing, result discarded: jobId={} type={}", job.id, job.type)
+                }
+            }
+        } catch (
+            @Suppress("TooGenericExceptionCaught") ex: Exception,
+        ) {
+            // Deliberately broad, as in runHandler: one job's failed bookkeeping must not stop the batch.
+            log.error("Job result could not be saved, will be retried when the lease expires: jobId={}", job.id, ex)
+        }
+    }
+
+    /** @return false if the job is no longer ours, so nothing was recorded. */
     private fun recordFailure(
         job: ClaimedJob,
         outcome: JobOutcome,
         attemptOutcome: AttemptOutcome,
-    ) {
+    ): Boolean {
         val now = clock.instant()
         val (reason, deadReason) =
             when (outcome) {
@@ -153,19 +147,19 @@ class JobWorker(
                     outcome.reason to (if (job.attempt >= job.maxAttempts) DeadReason.EXHAUSTED else null)
                 }
 
-                JobOutcome.Succeeded -> {
+                is JobOutcome.Succeeded -> {
                     error("Not a failure")
                 }
             }
-        val nextRunAt = if (deadReason == null) now.plus(properties.backoffAfter(job.attempt)) else now
+        val retryAfter = (outcome as? JobOutcome.TemporaryFailure)?.retryAfter
+        val nextRunAt = if (deadReason == null) now.plus(properties.waitBeforeRetry(job.attempt, retryAfter, random)) else now
         val recorded = queries.markFailed(job, now, attemptOutcome, reason.take(MAX_ERROR_LENGTH), deadReason, nextRunAt)
-        if (!recorded) {
-            log.warn("Job changed while running, failure not recorded: jobId={}", job.id)
-        } else if (deadReason != null) {
-            log.warn("Job dead: jobId={} type={} reason={} attempts={}", job.id, job.type, deadReason, job.attempt)
-        } else {
-            log.info("Job failed, will retry: jobId={} type={} attempt={} nextRunAt={}", job.id, job.type, job.attempt, nextRunAt)
+        when {
+            !recorded -> Unit
+            deadReason != null -> log.warn("Job dead: jobId={} type={} reason={} attempts={}", job.id, job.type, deadReason, job.attempt)
+            else -> log.info("Job failed, will retry: jobId={} type={} attempt={} nextRunAt={}", job.id, job.type, job.attempt, nextRunAt)
         }
+        return recorded
     }
 
     private companion object {
