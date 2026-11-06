@@ -56,11 +56,16 @@ sluice:
     max-attempts: 5
     initial-backoff: 30s
     max-backoff: 1h
+    backoff-jitter: 0.2
     lease: 5m
     batch-size: 10
     worker:
       enabled: true
       poll-interval: 2s
+  erp:
+    base-url: ${SLUICE_ERP_BASE_URL:http://localhost:8089}
+    connect-timeout: 2s
+    read-timeout: 10s
   shopify:
     # Required. The app's client secret, used to verify webhook signatures (X-Shopify-Hmac-Sha256).
     webhook-secret: ${SLUICE_SHOPIFY_WEBHOOK_SECRET:}

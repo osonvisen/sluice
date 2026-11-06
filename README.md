@@ -14,6 +14,7 @@ A small integration platform between a webshop, a warehouse and an ERP, with an 
 
 ```bash
 docker compose up -d                      # Postgres only (Keycloak: --profile auth, milestone 3)
+docker compose --profile app up -d erp     # stand-in ERP on :8089, so order imports have somewhere to go
 
 cd backend
 ./gradlew bootRun --args='--spring.profiles.active=migrate'   # run migrations, then exits
@@ -42,7 +43,7 @@ cd frontend && npm run lint && npm run format:check && npm run test:ci && npm ru
 docker build -t sluice .          # multi-stage image: Angular → Spring Boot jar → JRE, non-root
 ```
 
-To run the image locally the same way it runs in production (Postgres → migrations → app, each step waiting for the previous one to be healthy or to finish):
+To run the image locally the same way it runs in production (Postgres → migrations → app, each step waiting for the previous one to be healthy or to finish, plus a stand-in ERP):
 
 ```bash
 docker compose --profile app up --build --wait   # app on http://localhost:8080 (stop bootRun first)

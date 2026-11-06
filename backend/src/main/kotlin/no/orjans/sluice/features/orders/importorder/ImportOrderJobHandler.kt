@@ -1,86 +1,160 @@
 package no.orjans.sluice.features.orders.importorder
 
+import no.orjans.sluice.features.jobs.JobContext
+import no.orjans.sluice.features.jobs.JobEffects
 import no.orjans.sluice.features.jobs.JobHandler
 import no.orjans.sluice.features.jobs.JobOutcome
 import no.orjans.sluice.features.jobs.JobType
+import no.orjans.sluice.features.orders.ErpOrder
+import no.orjans.sluice.features.orders.ErpOrderSender
+import no.orjans.sluice.features.orders.ErpSendResult
 import no.orjans.sluice.features.orders.ImportOrderPayload
+import no.orjans.sluice.features.orders.OrderId
 import no.orjans.sluice.features.orders.OrderImport
 import no.orjans.sluice.features.orders.OrderStatus
-import no.orjans.sluice.shared.Result
-import no.orjans.sluice.shared.Sku
-import no.orjans.sluice.shared.atUtc
-import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.stereotype.Component
-import java.time.Clock
 
 /**
- * Imports a received order: checks that every line has a valid SKU and marks it `ACCEPTED`.
- * Milestone 2 adds the mapping and the call to the ERP here.
+ * Sends a received order to the ERP and records, per line, what was sent and what came back.
  *
- * Idempotent: an order that is already accepted succeeds again without changes.
- * A missing or invalid SKU is a permanent failure: retrying will not make the SKU appear.
+ * Runs without a transaction (ADR 0010): it only reads and calls the ERP; every write is in the
+ * returned effects. It can run more than once for the same order (crash, expired lease); the
+ * ERP's idempotency key (the order ID) makes the repeat harmless.
+ *
+ * | Situation                               | Outcome   | Order    |
+ * |-----------------------------------------|-----------|----------|
+ * | Already imported                        | Succeeded | unchanged |
+ * | A line can't be mapped (missing SKU, …) | Permanent | REJECTED, nothing sent |
+ * | ERP accepts (or replays an earlier yes) | Succeeded | IMPORTED + ERP order number |
+ * | ERP rejects (4xx, e.g. unknown SKU)     | Permanent | REJECTED |
+ * | ERP unavailable (timeout, 5xx)          | Temporary | unchanged, retried |
  */
 @Component
 class ImportOrderJobHandler(
-    private val jdbc: JdbcClient,
-    private val clock: Clock,
+    private val reader: OrderForImportReader,
+    private val mapper: ErpOrderMapper,
+    private val erp: ErpOrderSender,
+    private val recorder: ImportRecorder,
 ) : JobHandler<ImportOrderPayload> {
     override val type: JobType = OrderImport.JOB_TYPE
     override val payloadType: Class<ImportOrderPayload> = ImportOrderPayload::class.java
 
-    override fun handle(payload: ImportOrderPayload): JobOutcome {
-        val status = currentStatus(payload)
-        val invalidLines = if (status == OrderStatus.RECEIVED) linesWithInvalidSku(payload) else emptyList()
+    override fun handle(
+        payload: ImportOrderPayload,
+        context: JobContext,
+    ): JobOutcome {
+        val order = reader.find(payload.orderId)
         return when {
-            status == null -> {
+            order == null -> {
                 JobOutcome.PermanentFailure("Order ${payload.orderId} not found")
             }
 
-            status == OrderStatus.ACCEPTED -> {
-                JobOutcome.Succeeded
-            }
-
-            invalidLines.isNotEmpty() -> {
-                JobOutcome.PermanentFailure("Missing or invalid SKU on line ${invalidLines.joinToString(", ")}")
+            order.status == OrderStatus.IMPORTED -> {
+                JobOutcome.Succeeded()
             }
 
             else -> {
-                accept(payload)
-                JobOutcome.Succeeded
+                when (val mapping = mapper.map(order)) {
+                    is ErpMapping.Invalid -> invalid(order, mapping, context)
+                    is ErpMapping.Ready -> send(mapping.order, context)
+                }
             }
         }
     }
 
-    /** Locks the order row, so two runs of the same job can't both accept it. */
-    private fun currentStatus(payload: ImportOrderPayload): OrderStatus? =
-        jdbc
-            .sql("SELECT status FROM orders WHERE id = :id FOR UPDATE")
-            .param("id", payload.orderId)
-            .query(String::class.java)
-            .optional()
-            .map(OrderStatus::valueOf)
-            .orElse(null)
+    private fun invalid(
+        order: OrderForImport,
+        mapping: ErpMapping.Invalid,
+        context: JobContext,
+    ): JobOutcome {
+        val problemsByLine = mapping.problems.associateBy { it.lineNumber }
+        val entries =
+            order.lines.mapNotNull { line ->
+                problemsByLine[line.lineNumber]?.let {
+                    LineLogEntry(
+                        line.lineNumber,
+                        LineOutcome.INVALID,
+                        errorCode = it.code,
+                        errorMessage = it.message,
+                    )
+                }
+            }
+        val reason =
+            if (mapping.problems.isEmpty()) {
+                "The order has no lines"
+            } else {
+                "Not sent to the ERP: " + mapping.problems.joinToString("; ") { "line ${it.lineNumber} ${it.code}" }
+            }
+        return JobOutcome.PermanentFailure(reason, effects(order.id, context, entries, rejected = true))
+    }
 
-    private fun linesWithInvalidSku(payload: ImportOrderPayload): List<Int> =
-        jdbc
-            .sql("SELECT line_number, sku FROM order_lines WHERE order_id = :id ORDER BY line_number")
-            .param("id", payload.orderId)
-            .query { rs, _ -> rs.getInt("line_number") to rs.getString("sku") }
-            .list()
-            .filter { (_, sku) -> Sku.parse(sku) is Result.Failure }
-            .map { (lineNumber, _) -> lineNumber }
+    private fun send(
+        order: ErpOrder,
+        context: JobContext,
+    ): JobOutcome =
+        when (val result = erp.send(order)) {
+            is ErpSendResult.Accepted -> {
+                val confirmations = result.lines.associateBy { it.lineNumber }
+                val entries =
+                    order.lines.map {
+                        LineLogEntry(
+                            it.lineNumber,
+                            LineOutcome.ACCEPTED,
+                            sent = it,
+                            received = confirmations[it.lineNumber],
+                        )
+                    }
+                JobOutcome.Succeeded {
+                    recorder.logLines(order.orderReference, context, entries)
+                    recorder.markImported(order.orderReference, result.erpOrderNumber)
+                }
+            }
 
-    private fun accept(payload: ImportOrderPayload) {
-        jdbc
-            .sql(
-                """
-                UPDATE orders SET status = :accepted, updated_at = :now, version = version + 1
-                WHERE id = :id AND status = :received
-                """.trimIndent(),
-            ).param("id", payload.orderId)
-            .param("accepted", OrderStatus.ACCEPTED.name)
-            .param("received", OrderStatus.RECEIVED.name)
-            .param("now", clock.instant().atUtc())
-            .update()
+            is ErpSendResult.Rejected -> {
+                val errorsByLine = result.errors.filter { it.lineNumber != null }.associateBy { it.lineNumber }
+                val entries =
+                    order.lines.map { line ->
+                        val error = errorsByLine[line.lineNumber]
+                        if (error == null) {
+                            LineLogEntry(line.lineNumber, LineOutcome.ORDER_REJECTED, sent = line)
+                        } else {
+                            LineLogEntry(line.lineNumber, LineOutcome.REJECTED, line, error, error.code, error.message)
+                        }
+                    }
+                val reason =
+                    "Rejected by the ERP: " + result.errors.joinToString("; ") { e -> e.lineNumber?.let { "line $it ${e.code}" } ?: e.code }
+                JobOutcome.PermanentFailure(reason, effects(order.orderReference, context, entries, rejected = true))
+            }
+
+            is ErpSendResult.Unavailable -> {
+                val entries =
+                    order.lines.map {
+                        LineLogEntry(
+                            it.lineNumber,
+                            LineOutcome.NO_RESPONSE,
+                            sent = it,
+                            errorCode = ERP_UNAVAILABLE,
+                            errorMessage = result.reason,
+                        )
+                    }
+                JobOutcome.TemporaryFailure(
+                    "ERP unavailable: ${result.reason}",
+                    effects(order.orderReference, context, entries, rejected = false),
+                )
+            }
+        }
+
+    private fun effects(
+        orderId: OrderId,
+        context: JobContext,
+        entries: List<LineLogEntry>,
+        rejected: Boolean,
+    ) = JobEffects {
+        recorder.logLines(orderId, context, entries)
+        if (rejected) recorder.markRejected(orderId)
+    }
+
+    private companion object {
+        const val ERP_UNAVAILABLE = "ERP_UNAVAILABLE"
     }
 }

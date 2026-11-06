@@ -2,6 +2,7 @@ package no.orjans.sluice.features.jobs
 
 import no.orjans.sluice.features.jobs.worker.JobWorker
 import no.orjans.sluice.support.DatabaseCleaner
+import no.orjans.sluice.support.FixedRandom
 import no.orjans.sluice.support.IntegrationTest
 import no.orjans.sluice.support.MutableClock
 import no.orjans.sluice.support.ScriptedJobHandler
@@ -42,6 +43,9 @@ class JobWorkerIT {
     lateinit var properties: JobsProperties
 
     @Autowired
+    lateinit var random: FixedRandom
+
+    @Autowired
     lateinit var cleaner: DatabaseCleaner
 
     @BeforeEach
@@ -49,6 +53,7 @@ class JobWorkerIT {
         cleaner.clean()
         handler.reset()
         clock.set(MutableClock.START)
+        random.value = FixedRandom.MIDDLE
     }
 
     @Test
@@ -81,16 +86,86 @@ class JobWorkerIT {
     }
 
     @Test
-    fun `a failed attempt's database writes are rolled back`() {
-        handler.script("rollback", { JobOutcome.TemporaryFailure("boom") })
-        enqueue("rollback")
+    fun `the handler runs outside any transaction`() {
+        enqueue("no-tx")
 
         worker.runOnce()
-        assertThat(handlerWrites("rollback")).describedAs("failed attempt").isZero()
 
+        assertThat(handler.ranInTransaction).isFalse()
+    }
+
+    @Test
+    fun `a failed attempt's effects are recorded too, so the history is complete`() {
+        handler.script("record-failure", { JobOutcome.TemporaryFailure("boom") })
+        enqueue("record-failure")
+
+        worker.runOnce()
+
+        assertThat(handlerWrites("record-failure")).isEqualTo(1)
+    }
+
+    @Test
+    fun `a slow worker whose lease expired loses its result, the new owner's result counts`() {
+        val inHandler = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        handler.script(
+            "slow",
+            {
+                inHandler.countDown()
+                release.await(10, TimeUnit.SECONDS)
+                JobOutcome.Succeeded()
+            },
+        )
+        val id = enqueue("slow")
+        val slowWorker = Executors.newSingleThreadExecutor().submit<Int> { worker.runOnce() }
+        assertThat(inHandler.await(10, TimeUnit.SECONDS)).isTrue()
+
+        // While the first worker is stuck in the handler: its lease expires and another poll takes over.
+        clock.advance(properties.lease.plusSeconds(1))
+        worker.runOnce()
+        assertThat(job(id)).containsEntry("status", "FAILED")
         clock.advance(properties.maxBackoff)
         worker.runOnce()
-        assertThat(handlerWrites("rollback")).describedAs("succeeded attempt").isEqualTo(1)
+        assertThat(job(id)).containsEntry("status", "SUCCEEDED")
+
+        release.countDown()
+        slowWorker.get(10, TimeUnit.SECONDS)
+
+        assertThat(
+            job(id),
+        ).describedAs("the stale result changed nothing").containsEntry("status", "SUCCEEDED").containsEntry("attempts", 2)
+        assertThat(handlerWrites("slow")).describedAs("only the owner's effects were applied").isEqualTo(1)
+        assertThat(attempts(id)).containsExactly("LEASE_EXPIRED", "SUCCEEDED")
+    }
+
+    @Test
+    fun `if the effects fail, the job stays RUNNING and is retried after the lease, like a crash`() {
+        jdbc.sql("ALTER TABLE scripted_job_writes ADD CONSTRAINT no_poison CHECK (job_key <> 'poison')").update()
+        try {
+            val id = enqueue("poison")
+
+            worker.runOnce()
+            assertThat(job(id)).containsEntry("status", "RUNNING")
+
+            clock.advance(properties.lease.plusSeconds(1))
+            worker.runOnce()
+            assertThat(job(id)).containsEntry("status", "FAILED")
+            assertThat(attempts(id)).containsExactly("LEASE_EXPIRED")
+        } finally {
+            jdbc.sql("ALTER TABLE scripted_job_writes DROP CONSTRAINT no_poison").update()
+        }
+    }
+
+    @Test
+    fun `backoff gets jitter from the injected random generator`() {
+        handler.script("jitter", { JobOutcome.TemporaryFailure("down") })
+        random.value = 0.0
+        val id = enqueue("jitter")
+
+        worker.runOnce()
+
+        val lowest = properties.initialBackoff.multipliedBy(((1 - properties.backoffJitter) * 1000).toLong()).dividedBy(1000)
+        assertThat(nextRunAt(id)).isEqualTo(MutableClock.START.plus(lowest))
     }
 
     @Test

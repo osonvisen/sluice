@@ -4,7 +4,7 @@
 #   docker compose up                    → Postgres only
 #   docker compose --profile auth up     → Postgres + Keycloak (only when working on login)
 #   docker compose --profile app up --build --wait
-#                                        → Postgres + migrations + the app image on :8080 (smoke test
+#                                        → Postgres + migrations + a stand-in ERP + the app image on :8080 (smoke test
 #                                          the Docker image; stop bootRun first, it uses the same port)
 
 services:
@@ -41,6 +41,19 @@ services:
         condition: service_healthy
     mem_limit: 384m
 
+  # A stand-in ERP for running the image locally. The order number comes from the Idempotency-Key
+  # (the order ID), so sending the same order twice gives the same number. The tests use a richer
+  # fake ERP (FakeErp) with real replay, rejections and faults.
+  erp:
+    profiles: ["app"]
+    # Not the -alpine variant: it has no arm64 build (Apple Silicon).
+    image: wiremock/wiremock:3.13.2
+    volumes:
+      - ./docker/erp:/home/wiremock:ro
+    ports:
+      - "8089:8080"
+    mem_limit: 256m
+
   # The app itself. Starts only after the migrations have succeeded; it only validates the schema.
   app:
     profiles: ["app"]
@@ -51,11 +64,14 @@ services:
       SLUICE_DB_PASSWORD: ${SLUICE_DB_PASSWORD:-sluice}
       # Dev-only default; override in .env. The real secret comes from the environment in production.
       SLUICE_SHOPIFY_WEBHOOK_SECRET: ${SLUICE_SHOPIFY_WEBHOOK_SECRET:-local-dev-secret}
+      SLUICE_ERP_BASE_URL: http://erp:8080
     ports:
       - "8080:8080"
     depends_on:
       postgres:
         condition: service_healthy
+      erp:
+        condition: service_started
       migrate:
         condition: service_completed_successfully
     mem_limit: 512m

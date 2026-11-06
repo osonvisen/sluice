@@ -9,6 +9,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.concurrent.atomic.AtomicReference
+import java.util.random.RandomGenerator
 
 /** A clock tests can move, so backoff and leases are tested without sleeping. */
 class MutableClock(
@@ -31,9 +32,30 @@ class MutableClock(
     }
 }
 
+/**
+ * Randomness tests control. The default 0.5 is the middle of the range, which makes backoff jitter
+ * zero, so tests can predict `next_run_at` exactly.
+ */
+class FixedRandom : RandomGenerator {
+    @Volatile
+    var value: Double = MIDDLE
+
+    override fun nextDouble(): Double = value
+
+    override fun nextLong(): Long = (value * Long.MAX_VALUE).toLong()
+
+    companion object {
+        const val MIDDLE = 0.5
+    }
+}
+
 @TestConfiguration(proxyBeanMethods = false)
 class TestClockConfiguration {
     @Bean
     @Primary
     fun mutableClock(): MutableClock = MutableClock(MutableClock.START)
+
+    @Bean
+    @Primary
+    fun fixedRandom(): FixedRandom = FixedRandom()
 }
