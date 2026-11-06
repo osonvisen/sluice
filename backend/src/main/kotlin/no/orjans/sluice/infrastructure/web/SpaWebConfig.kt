@@ -1,6 +1,6 @@
 package no.orjans.sluice.infrastructure.web
 
-import no.orjans.sluice.shared.ApiPaths
+import no.orjans.sluice.web.ApiPaths
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.io.Resource
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry

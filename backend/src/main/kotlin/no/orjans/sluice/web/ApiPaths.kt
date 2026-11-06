@@ -1,4 +1,4 @@
-package no.orjans.sluice.shared
+package no.orjans.sluice.web
 
 /** URL prefixes (ADR 0005). Everything outside these is served by the Angular app. */
 object ApiPaths {

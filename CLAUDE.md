@@ -12,6 +12,8 @@ The architecture decisions are in `docs/adr/`:
 - **0004:** Keycloak/OIDC with Spring Boot as the BFF, client credentials for MCP, and roles mapped to permissions
 - **0005:** one container, with Angular built into the Spring Boot jar
 - **0006:** stack, versions and language support (`en` + `nb`)
+- **0007:** detekt 2.0 alpha, because detekt 1.x does not run on JDK 25
+- **0008:** top-level `web/` package for the HTTP edge (Result → HTTP, ProblemDetail, ETag, idempotency); `infrastructure/` is adapters and config only
 
 New decisions are recorded as a new ADR. Don't change an accepted ADR. Supersede it with a new one instead.
 
@@ -28,7 +30,7 @@ New decisions are recorded as a new ADR. Don't change an accepted ADR. Supersede
 Base package: `no.orjans.sluice` (Gradle group `no.orjans`).
 
 ```
-backend/      features/<area>/<slice>/, shared/, infrastructure/
+backend/      features/<area>/<slice>/, web/, shared/, infrastructure/
 frontend/     core/, shared/, features/<feature>/
 keycloak/     realm export (demo users, roles, MCP client)
 docs/adr/     architecture decisions

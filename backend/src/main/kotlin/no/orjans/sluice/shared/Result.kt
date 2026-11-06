@@ -5,7 +5,7 @@ package no.orjans.sluice.shared
  *
  * Expected failures (not found, validation, business rules) are values, not exceptions,
  * so the compiler forces callers to handle them. Translation to HTTP happens in one place
- * (`infrastructure.web.ProblemDetailFactory`).
+ * (`web.ProblemDetailFactory`).
  */
 sealed interface Result<out T> {
     data class Success<out T>(

@@ -3,6 +3,9 @@
 #
 #   docker compose up                    → Postgres only
 #   docker compose --profile auth up     → Postgres + Keycloak (only when working on login)
+#   docker compose --profile app up --build --wait
+#                                        → Postgres + migrations + the app image on :8080 (smoke test
+#                                          the Docker image; stop bootRun first, it uses the same port)
 
 services:
   postgres:
@@ -22,6 +25,45 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  # Runs the migrations once and exits (same image, `migrate` profile), like the release step in prod.
+  migrate:
+    profiles: ["app"]
+    build: .
+    image: sluice:local
+    environment:
+      SPRING_PROFILES_ACTIVE: prod,migrate
+      SLUICE_DB_URL: jdbc:postgresql://postgres:5432/sluice
+      SLUICE_DB_USER: ${SLUICE_DB_USER:-sluice}
+      SLUICE_DB_PASSWORD: ${SLUICE_DB_PASSWORD:-sluice}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    mem_limit: 384m
+
+  # The app itself. Starts only after the migrations have succeeded; it only validates the schema.
+  app:
+    profiles: ["app"]
+    image: sluice:local
+    environment:
+      SLUICE_DB_URL: jdbc:postgresql://postgres:5432/sluice
+      SLUICE_DB_USER: ${SLUICE_DB_USER:-sluice}
+      SLUICE_DB_PASSWORD: ${SLUICE_DB_PASSWORD:-sluice}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    mem_limit: 512m
+    healthcheck:
+      # busybox wget is in the Alpine JRE image; no curl needed.
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health/ready > /dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 60s
 
   # Realm, users, roles and the MCP client are added in milestone 3 (ADR 0004).
   keycloak:

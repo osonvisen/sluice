@@ -1,7 +1,7 @@
 package no.orjans.sluice.shared
 
 /**
- * Expected errors. Each variant maps to exactly one HTTP status in `infrastructure.web.ProblemDetailFactory`,
+ * Expected errors. Each variant maps to exactly one HTTP status in `web.ProblemDetailFactory`,
  * so the domain never knows about HTTP.
  *
  * [messageArgs] are inserted into the translated detail text. They must never contain personal data.

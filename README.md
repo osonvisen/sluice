@@ -42,6 +42,13 @@ cd frontend && npm run lint && npm run format:check && npm run test:ci && npm ru
 docker build -t sluice .          # multi-stage image: Angular → Spring Boot jar → JRE, non-root
 ```
 
+To run the image locally the same way it runs in production (Postgres → migrations → app, each step waiting for the previous one to be healthy or to finish):
+
+```bash
+docker compose --profile app up --build --wait   # app on http://localhost:8080 (stop bootRun first)
+docker compose --profile app down
+```
+
 The image runs with the `prod` profile (JSON logs). Run it once with `SPRING_PROFILES_ACTIVE=prod,migrate` before each release to migrate the database.
 
 ## Changing the API

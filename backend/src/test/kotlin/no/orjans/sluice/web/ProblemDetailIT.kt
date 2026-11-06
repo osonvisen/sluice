@@ -1,4 +1,4 @@
-package no.orjans.sluice.infrastructure.web
+package no.orjans.sluice.web
 
 import no.orjans.sluice.support.IntegrationTest
 import org.assertj.core.api.Assertions.assertThat

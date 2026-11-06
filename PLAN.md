@@ -2,7 +2,7 @@
 
 Goal: show that I can build robust integrations in Kotlin/Spring and Angular, the way a Nordic product company (PIM, WMS, integration and EDI) works. Each milestone should result in something that can be shown on its own.
 
-Architecture decisions are in `docs/adr/` (0001–0006). Read them before starting a milestone.
+Architecture decisions are in `docs/adr/` (0001–0008). Read them before starting a milestone.
 
 ## Milestone 0 – Setup
 - Monorepo with `backend/` (Spring Boot, Kotlin, JDK 25, Gradle KTS + version catalog) and `frontend/` (Angular and Material). Folder structure per ADR 0001 (`features/`, `shared/`, `infrastructure/`).
@@ -67,7 +67,7 @@ Architecture decisions are in `docs/adr/` (0001–0006). Read them before starti
 
 ## Milestone 6 – Publishing and README
 - One Docker image (ADR 0005), versioned, non-root.
-- OIDC in the cloud: a Keycloak container on Cloud Run (min-instances 0) or a managed OIDC provider. Decide and record it as ADR 0008 (0007 is taken by the detekt decision).
+- OIDC in the cloud: a Keycloak container on Cloud Run (min-instances 0) or a managed OIDC provider. Decide and record it as ADR 0009 (0007 and 0008 are taken by the detekt and `web/` package decisions).
 - Deploy to Google Cloud Run with Cloud SQL (or Neon) for Postgres.
 - README in English: what the project solves, an architecture diagram (Mermaid), how to run it locally, design choices (Postgres queue vs Kafka, idempotency, human-in-the-loop) and screenshots.
 
