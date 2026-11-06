@@ -1,12 +1,15 @@
 api.base.service.ts
 api.module.ts
 api/api.ts
+api/jobs.service.ts
 api/system.service.ts
 configuration.ts
 encoder.ts
 index.ts
 model/app-info-response.ts
+model/get-job-response.ts
 model/models.ts
+model/retry-job-response.ts
 param.ts
 provide-api.ts
 query.params.ts

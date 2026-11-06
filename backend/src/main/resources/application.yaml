@@ -51,6 +51,20 @@ management:
     readinessstate:
       enabled: true
 
+sluice:
+  jobs:
+    max-attempts: 5
+    initial-backoff: 30s
+    max-backoff: 1h
+    lease: 5m
+    batch-size: 10
+    worker:
+      enabled: true
+      poll-interval: 2s
+  shopify:
+    # Required. The app's client secret, used to verify webhook signatures (X-Shopify-Hmac-Sha256).
+    webhook-secret: ${SLUICE_SHOPIFY_WEBHOOK_SECRET:}
+
 springdoc:
   paths-to-match: /api/**
   swagger-ui:

@@ -5,7 +5,7 @@ package no.orjans.sluice.shared
  *
  * Expected failures (not found, validation, business rules) are values, not exceptions,
  * so the compiler forces callers to handle them. Translation to HTTP happens in one place
- * (`infrastructure.web.ProblemDetailFactory`).
+ * (`web.ProblemDetailFactory`).
  */
 sealed interface Result<out T> {
     data class Success<out T>(
@@ -33,6 +33,12 @@ inline fun <T, R> Result<T>.flatMap(transform: (T) -> Result<R>): Result<R> =
     when (this) {
         is Result.Success -> transform(value)
         is Result.Failure -> this
+    }
+
+fun <T> Result<T>.valueOrNull(): T? =
+    when (this) {
+        is Result.Success -> value
+        is Result.Failure -> null
     }
 
 inline fun <T, R> Result<T>.fold(

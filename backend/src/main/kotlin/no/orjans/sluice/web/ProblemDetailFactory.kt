@@ -1,4 +1,4 @@
-package no.orjans.sluice.infrastructure.web
+package no.orjans.sluice.web
 
 import no.orjans.sluice.shared.AppError
 import no.orjans.sluice.shared.ErrorCode
@@ -47,6 +47,7 @@ class ProblemDetailFactory(
             is AppError.NotFound -> HttpStatus.NOT_FOUND
             is AppError.Validation -> HttpStatus.BAD_REQUEST
             is AppError.Conflict -> HttpStatus.CONFLICT
+            is AppError.PreconditionFailed -> HttpStatus.PRECONDITION_FAILED
             is AppError.RuleViolation -> HttpStatus.UNPROCESSABLE_CONTENT
         }
 

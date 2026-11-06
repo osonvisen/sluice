@@ -1,4 +1,4 @@
-package no.orjans.sluice.infrastructure.web
+package no.orjans.sluice.web
 
 import no.orjans.sluice.shared.AppError
 import no.orjans.sluice.shared.ErrorCode
@@ -18,6 +18,7 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 /**
  * Turns every exception that reaches the web layer into a ProblemDetail with a `code`.
  *
+ * Expected errors from endpoints arrive as [AppErrorException] (see `getOrThrow`).
  * Spring MVC's own exceptions (404, 405, 415, ...) get a code derived from their status.
  * Rejected requests are logged at WARN, unexpected errors at ERROR (security-and-ops standard).
  * Anything unexpected becomes a 500 without internal details; the stack trace is only logged,
@@ -28,6 +29,13 @@ class GlobalExceptionHandler(
     private val problems: ProblemDetailFactory,
 ) : ResponseEntityExceptionHandler() {
     private val log = LoggerFactory.getLogger(javaClass)
+
+    @ExceptionHandler(AppErrorException::class)
+    fun handleAppError(ex: AppErrorException): ResponseEntity<ProblemDetail> {
+        val problem = problems.from(ex.error)
+        log.warn("Request rejected: status={} code={}", problem.status, ex.error.code)
+        return ResponseEntity.status(problem.status).body(problem)
+    }
 
     @ExceptionHandler(Exception::class)
     fun handleUnexpected(ex: Exception): ResponseEntity<ProblemDetail> {

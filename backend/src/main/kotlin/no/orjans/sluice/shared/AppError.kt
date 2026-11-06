@@ -1,7 +1,7 @@
 package no.orjans.sluice.shared
 
 /**
- * Expected errors. Each variant maps to exactly one HTTP status in `infrastructure.web.ProblemDetailFactory`,
+ * Expected errors. Each variant maps to exactly one HTTP status in `web.ProblemDetailFactory`,
  * so the domain never knows about HTTP.
  *
  * [messageArgs] are inserted into the translated detail text. They must never contain personal data.
@@ -27,11 +27,20 @@ sealed interface AppError {
         override val messageArgs = emptyList<Any>()
     }
 
-    /** The resource changed since the client read it, or the request duplicates existing state (409). */
+    /** The request conflicts with the resource's current state, e.g. retrying a job that is not failed (409). */
     data class Conflict(
         override val code: ErrorCode = ErrorCode.CONFLICT,
         override val messageArgs: List<Any> = emptyList(),
     ) : AppError
+
+    /** The client's version of the resource is stale: someone else changed it since it was read (412). */
+    data class PreconditionFailed(
+        val resource: String,
+        val id: String,
+    ) : AppError {
+        override val code = ErrorCode.PRECONDITION_FAILED
+        override val messageArgs = listOf(resource, id)
+    }
 
     /** A business rule that needs context rejected the request, e.g. an illegal status transition (422). */
     data class RuleViolation(

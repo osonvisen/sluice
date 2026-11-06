@@ -10,6 +10,65 @@
     "description" : "Same origin as the web app (ADR 0005)"
   } ],
   "paths" : {
+    "/api/jobs/{id}/retry" : {
+      "post" : {
+        "tags" : [ "Jobs" ],
+        "operationId" : "retryJob",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "If-Match",
+          "in" : "header",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RetryJobResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs/{id}" : {
+      "get" : {
+        "tags" : [ "Jobs" ],
+        "operationId" : "getJob",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GetJobResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/app-info" : {
       "get" : {
         "tags" : [ "System" ],
@@ -31,6 +90,70 @@
   },
   "components" : {
     "schemas" : {
+      "RetryJobResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "PENDING", "RUNNING", "SUCCEEDED", "FAILED", "DEAD" ]
+          },
+          "attempts" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "nextRunAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        },
+        "required" : [ "attempts", "id", "nextRunAt", "status" ]
+      },
+      "GetJobResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "PENDING", "RUNNING", "SUCCEEDED", "FAILED", "DEAD" ]
+          },
+          "deadReason" : {
+            "type" : [ "string", "null" ],
+            "enum" : [ "PERMANENT", "EXHAUSTED" ]
+          },
+          "attempts" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "maxAttempts" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "nextRunAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "lastError" : {
+            "type" : [ "string", "null" ]
+          },
+          "createdAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "updatedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        },
+        "required" : [ "attempts", "createdAt", "id", "maxAttempts", "nextRunAt", "status", "type", "updatedAt" ]
+      },
       "AppInfoResponse" : {
         "type" : "object",
         "properties" : {

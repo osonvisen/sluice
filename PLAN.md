@@ -2,7 +2,7 @@
 
 Goal: show that I can build robust integrations in Kotlin/Spring and Angular, the way a Nordic product company (PIM, WMS, integration and EDI) works. Each milestone should result in something that can be shown on its own.
 
-Architecture decisions are in `docs/adr/` (0001–0006). Read them before starting a milestone.
+Architecture decisions are in `docs/adr/`. Read them before starting a milestone. ADR numbers are not reserved in advance: a new decision takes the next free number.
 
 ## Milestone 0 – Setup
 - Monorepo with `backend/` (Spring Boot, Kotlin, JDK 25, Gradle KTS + version catalog) and `frontend/` (Angular and Material). Folder structure per ADR 0001 (`features/`, `shared/`, `infrastructure/`).
@@ -24,10 +24,11 @@ Architecture decisions are in `docs/adr/` (0001–0006). Read them before starti
 - HMAC verification of the webhook (`X-Shopify-Hmac-Sha256`).
 - Idempotency: the same order (Shopify order id / webhook id) creates only one job, even under parallel calls. A unique constraint in the database is the final guard.
 - The queue is **generic**: a `JobHandler<T>` interface per job type. Order import is the first implementation, and later milestones reuse the same queue.
-- Each order becomes a row in `jobs` with status `PENDING → RUNNING → SUCCEEDED | FAILED → DEAD`, attempts, `next_run_at` and error message.
+- Each order becomes a row in `jobs` with status `PENDING → RUNNING → SUCCEEDED | FAILED → DEAD`, attempts, `next_run_at` and error message. `FAILED` = a new attempt is planned, `DEAD` = gave up, with `dead_reason` `PERMANENT | EXHAUSTED` (ADR 0009).
 - A worker picks up jobs with `SELECT … FOR UPDATE SKIP LOCKED` so that multiple instances can run in parallel without taking the same job.
 - Retries with exponential backoff and a maximum number of attempts, then dead-letter (`DEAD`).
-- `POST /jobs/{id}/retry` to rerun a job manually.
+- `POST /api/jobs/{id}/retry` to rerun a job manually: only from `FAILED`/`DEAD` (409 `job-not-retryable`), with `If-Match` (428 if missing, 412 if stale). The ETag building block lives in `web/`.
+- The webhook verifies the HMAC before parsing JSON, limits the request size, stores the order and the job in one transaction and answers quickly (Shopify's 5 s timeout).
 - Tests: duplicate webhook, parallel workers, an error followed by success on retry, and dead-letter after N failures.
 
 ## Milestone 2 – Mapping to ERP and line-level traceability
@@ -67,8 +68,9 @@ Architecture decisions are in `docs/adr/` (0001–0006). Read them before starti
 
 ## Milestone 6 – Publishing and README
 - One Docker image (ADR 0005), versioned, non-root.
-- OIDC in the cloud: a Keycloak container on Cloud Run (min-instances 0) or a managed OIDC provider. Decide and record it as ADR 0008 (0007 is taken by the detekt decision).
+- OIDC in the cloud: a Keycloak container on Cloud Run (min-instances 0) or a managed OIDC provider. Decide and record it as a new ADR (next free number).
 - Deploy to Google Cloud Run with Cloud SQL (or Neon) for Postgres.
+- Rate limiting for open endpoints (the webhooks) in front of the app: Cloud Armor / the load balancer. Deferred from milestone 1 (technical debt until then).
 - README in English: what the project solves, an architecture diagram (Mermaid), how to run it locally, design choices (Postgres queue vs Kafka, idempotency, human-in-the-loop) and screenshots.
 
 ## Bonus

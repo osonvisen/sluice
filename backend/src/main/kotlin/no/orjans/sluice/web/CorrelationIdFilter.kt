@@ -1,4 +1,4 @@
-package no.orjans.sluice.infrastructure.web
+package no.orjans.sluice.web
 
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest

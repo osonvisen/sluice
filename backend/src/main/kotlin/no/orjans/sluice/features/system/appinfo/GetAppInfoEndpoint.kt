@@ -1,7 +1,7 @@
 package no.orjans.sluice.features.system.appinfo
 
 import io.swagger.v3.oas.annotations.tags.Tag
-import no.orjans.sluice.shared.ApiPaths
+import no.orjans.sluice.web.ApiPaths
 import org.springframework.boot.info.BuildProperties
 import org.springframework.http.MediaType
 import org.springframework.web.bind.annotation.GetMapping
