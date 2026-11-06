@@ -18,6 +18,8 @@ import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.test.web.servlet.assertj.MockMvcTester
 import org.springframework.transaction.support.TransactionTemplate
 import java.time.Duration
+import java.time.Instant
+import java.time.OffsetDateTime
 import java.util.UUID
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -132,6 +134,56 @@ class OrderFlowIT {
     }
 
     @Test
+    fun `429 with retry-after waits exactly as long as the erp asked`() {
+        receive()
+        erp.failNextWith(429, mapOf("Retry-After" to "120"))
+
+        worker.runOnce()
+        assertThat(
+            state(),
+        ).containsEntry("job_status", "FAILED").containsEntry("last_error", "ERP unavailable: HTTP 429 from the ERP (rate limited)")
+        assertThat(nextRunAt()).isEqualTo(MutableClock.START.plusSeconds(120))
+
+        clock.advance(Duration.ofSeconds(119))
+        assertThat(worker.runOnce()).describedAs("not before Retry-After").isZero()
+
+        clock.advance(Duration.ofSeconds(1))
+        worker.runOnce()
+        assertThat(state()).containsEntry("order_status", "IMPORTED")
+        assertThat(erp.ordersCreated()).isEqualTo(1)
+    }
+
+    @Test
+    fun `409 from the erp is temporary, and the retry imports the order once`() {
+        receive()
+        erp.failNextWith(409)
+
+        worker.runOnce()
+        assertThat(state())
+            .containsEntry("order_status", "RECEIVED")
+            .containsEntry("job_status", "FAILED")
+            .containsEntry("last_error", "ERP unavailable: HTTP 409 from the ERP (the same order is still being processed)")
+
+        clock.advance(properties.maxBackoff)
+        worker.runOnce()
+        assertThat(state()).containsEntry("order_status", "IMPORTED").containsEntry("job_status", "SUCCEEDED")
+        assertThat(erp.ordersCreated()).isEqualTo(1)
+    }
+
+    @Test
+    fun `408 from the erp is temporary, not a rejection`() {
+        receive()
+        erp.failNextWith(408)
+
+        worker.runOnce()
+
+        assertThat(
+            state(),
+        ).containsEntry("order_status", "RECEIVED").containsEntry("job_status", "FAILED").containsEntry("dead_reason", null)
+        assertThat(lineLog()).containsExactly("1 NO_RESPONSE ERP_UNAVAILABLE", "2 NO_RESPONSE ERP_UNAVAILABLE")
+    }
+
+    @Test
     fun `a timeout after the erp processed the order does not create a second erp order`() {
         receive()
         erp.delayNext(Duration.ofSeconds(3))
@@ -220,6 +272,13 @@ class OrderFlowIT {
                 """.trimIndent(),
             ).query()
             .singleRow()
+
+    private fun nextRunAt(): Instant =
+        jdbc
+            .sql("SELECT j.next_run_at FROM jobs j JOIN orders o ON o.import_job_id = j.id")
+            .query(OffsetDateTime::class.java)
+            .single()
+            .toInstant()
 
     private fun attempts(): List<String?> =
         jdbc

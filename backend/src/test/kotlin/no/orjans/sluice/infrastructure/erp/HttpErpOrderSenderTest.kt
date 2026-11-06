@@ -28,14 +28,17 @@ import org.springframework.web.client.RestClient
 import java.math.BigDecimal
 import java.net.ServerSocket
 import java.net.URI
+import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.time.ZoneOffset
 import java.util.Currency
 import java.util.UUID
 
 /** The adapter's contract with the ERP's wire format, against a plain WireMock (no Spring context). */
 class HttpErpOrderSenderTest {
     private val server = WireMockServer(options().dynamicPort())
+    private val clock = Clock.fixed(Instant.parse("2026-11-06T09:00:00Z"), ZoneOffset.UTC)
     private val orderId = OrderId.of(UUID.fromString("0b8f3c1e-6c1a-4b7e-9d65-1f2a3b4c5d6e"))
 
     private val order =
@@ -69,6 +72,7 @@ class HttpErpOrderSenderTest {
         RestClient.builder(),
         ErpProperties(URI(baseUrl), Duration.ofSeconds(1), readTimeout),
         JobsProperties(5, Duration.ofSeconds(30), Duration.ofHours(1), 0.2, lease, 10, JobsProperties.Worker(false, Duration.ofSeconds(2))),
+        clock,
     )
 
     private fun stub(
@@ -77,6 +81,12 @@ class HttpErpOrderSenderTest {
     ) = server.stubFor(
         post("/api/orders").willReturn(aResponse().withStatus(status).withHeader("Content-Type", "application/json").withBody(body)),
     )
+
+    private fun stubWithHeader(
+        status: Int,
+        header: String,
+        value: String,
+    ) = server.stubFor(post("/api/orders").willReturn(aResponse().withStatus(status).withHeader(header, value).withBody("{}")))
 
     @Test
     fun `posts the order in the erp's format with the order id as idempotency key`() {
@@ -123,6 +133,60 @@ class HttpErpOrderSenderTest {
         assertThat(
             sender().send(order),
         ).isEqualTo(ErpSendResult.Rejected(listOf(ErpLineError(null, "HTTP_400", "The ERP refused the order"))))
+    }
+
+    @Test
+    fun `408 request timeout is temporary, not a rejection`() {
+        stub(408, "{}")
+
+        assertThat(sender().send(order)).isEqualTo(ErpSendResult.Unavailable("HTTP 408 from the ERP (request timeout)"))
+    }
+
+    @Test
+    fun `409 is temporary, because the same idempotency key may still be in progress`() {
+        stub(409, """{"errors":[{"code":"IN_PROGRESS","message":"Same key is being processed"}]}""")
+
+        assertThat(sender().send(order))
+            .isEqualTo(ErpSendResult.Unavailable("HTTP 409 from the ERP (the same order is still being processed)"))
+    }
+
+    @Test
+    fun `429 with retry-after in seconds passes the wait on`() {
+        stubWithHeader(429, "Retry-After", "120")
+
+        assertThat(
+            sender().send(order),
+        ).isEqualTo(ErpSendResult.Unavailable("HTTP 429 from the ERP (rate limited)", Duration.ofSeconds(120)))
+    }
+
+    @Test
+    fun `429 with retry-after as an http date is measured from now`() {
+        stubWithHeader(429, "Retry-After", "Fri, 06 Nov 2026 09:05:00 GMT")
+
+        assertThat((sender().send(order) as ErpSendResult.Unavailable).retryAfter).isEqualTo(Duration.ofMinutes(5))
+    }
+
+    @Test
+    fun `429 with a retry-after date in the past means now`() {
+        stubWithHeader(429, "Retry-After", "Fri, 06 Nov 2026 08:00:00 GMT")
+
+        assertThat((sender().send(order) as ErpSendResult.Unavailable).retryAfter).isEqualTo(Duration.ZERO)
+    }
+
+    @Test
+    fun `429 without a usable retry-after leaves the wait to our backoff`() {
+        stub(429, "{}")
+        assertThat((sender().send(order) as ErpSendResult.Unavailable).retryAfter).isNull()
+
+        stubWithHeader(429, "Retry-After", "soon")
+        assertThat((sender().send(order) as ErpSendResult.Unavailable).retryAfter).isNull()
+    }
+
+    @Test
+    fun `retry-after is only read on 429`() {
+        stubWithHeader(503, "Retry-After", "120")
+
+        assertThat((sender().send(order) as ErpSendResult.Unavailable).retryAfter).isNull()
     }
 
     @Test

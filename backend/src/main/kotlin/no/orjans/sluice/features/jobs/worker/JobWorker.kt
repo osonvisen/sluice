@@ -151,7 +151,8 @@ class JobWorker(
                     error("Not a failure")
                 }
             }
-        val nextRunAt = if (deadReason == null) now.plus(properties.backoffAfter(job.attempt, random)) else now
+        val retryAfter = (outcome as? JobOutcome.TemporaryFailure)?.retryAfter
+        val nextRunAt = if (deadReason == null) now.plus(properties.waitBeforeRetry(job.attempt, retryAfter, random)) else now
         val recorded = queries.markFailed(job, now, attemptOutcome, reason.take(MAX_ERROR_LENGTH), deadReason, nextRunAt)
         when {
             !recorded -> Unit

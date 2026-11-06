@@ -27,7 +27,7 @@ import org.springframework.stereotype.Component
  * | A line can't be mapped (missing SKU, …) | Permanent | REJECTED, nothing sent |
  * | ERP accepts (or replays an earlier yes) | Succeeded | IMPORTED + ERP order number |
  * | ERP rejects (4xx, e.g. unknown SKU)     | Permanent | REJECTED |
- * | ERP unavailable (timeout, 5xx)          | Temporary | unchanged, retried |
+ * | ERP unavailable (timeout, 5xx, 408/409/429) | Temporary | unchanged, retried (429: after Retry-After) |
  */
 @Component
 class ImportOrderJobHandler(
@@ -140,6 +140,7 @@ class ImportOrderJobHandler(
                 JobOutcome.TemporaryFailure(
                     "ERP unavailable: ${result.reason}",
                     effects(order.orderReference, context, entries, rejected = false),
+                    retryAfter = result.retryAfter,
                 )
             }
         }

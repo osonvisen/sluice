@@ -72,6 +72,7 @@ Architecture decisions are in `docs/adr/`. Read them before starting a milestone
 - OIDC in the cloud: a Keycloak container on Cloud Run (min-instances 0) or a managed OIDC provider. Decide and record it as a new ADR (next free number).
 - Deploy to Google Cloud Run with Cloud SQL (or Neon) for Postgres.
 - Rate limiting for open endpoints (the webhooks) in front of the app: Cloud Armor / the load balancer. Deferred from milestone 1 (technical debt until then).
+- Circuit breaker in front of the ERP: after repeated `ErpSendResult.Unavailable`, stop calling for a while and fail fast, so a long ERP outage doesn't use up every job's attempts. Backoff, jitter and `Retry-After` dampen this today, but don't stop it. Deferred from milestone 2 (technical debt until then).
 - Clean-up of `job_attempts` (and the per-line ERP log): keep the history for a configurable period, then archive or delete it in batches, so the tables don't grow without bound. Deferred from milestone 1.
 - README in English: what the project solves, an architecture diagram (Mermaid), how to run it locally, design choices (Postgres queue vs Kafka, idempotency, human-in-the-loop) and screenshots.
 

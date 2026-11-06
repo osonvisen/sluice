@@ -157,6 +157,19 @@ class JobWorkerIT {
     }
 
     @Test
+    fun `a retry-after from the handler decides next run, capped at max backoff`() {
+        handler.script("told-90s", { JobOutcome.TemporaryFailure("rate limited", retryAfter = Duration.ofSeconds(90)) })
+        handler.script("told-2h", { JobOutcome.TemporaryFailure("rate limited", retryAfter = properties.maxBackoff.multipliedBy(2)) })
+        val ninetySeconds = enqueue("told-90s")
+        val twoHours = enqueue("told-2h")
+
+        worker.runOnce()
+
+        assertThat(nextRunAt(ninetySeconds)).isEqualTo(MutableClock.START.plusSeconds(90))
+        assertThat(nextRunAt(twoHours)).isEqualTo(MutableClock.START.plus(properties.maxBackoff))
+    }
+
+    @Test
     fun `backoff gets jitter from the injected random generator`() {
         handler.script("jitter", { JobOutcome.TemporaryFailure("down") })
         random.value = 0.0

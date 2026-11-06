@@ -51,6 +51,22 @@ class JobsPropertiesTest {
     }
 
     @Test
+    fun `the other side's retry-after replaces the backoff, without jitter`() {
+        assertThat(properties().waitBeforeRetry(1, Duration.ofSeconds(90), random(0.0))).isEqualTo(Duration.ofSeconds(90))
+    }
+
+    @Test
+    fun `retry-after never waits longer than max backoff, and never negative`() {
+        assertThat(properties().waitBeforeRetry(1, Duration.ofHours(2), random(FixedRandom.MIDDLE))).isEqualTo(Duration.ofMinutes(5))
+        assertThat(properties().waitBeforeRetry(1, Duration.ofSeconds(-5), random(FixedRandom.MIDDLE))).isEqualTo(Duration.ZERO)
+    }
+
+    @Test
+    fun `without retry-after the normal backoff applies`() {
+        assertThat(properties().waitBeforeRetry(2, null, random(FixedRandom.MIDDLE))).isEqualTo(Duration.ofSeconds(60))
+    }
+
+    @Test
     fun `invalid configuration fails at startup`() {
         assertThatThrownBy { properties(initial = Duration.ofHours(2), max = Duration.ofHours(1)) }
             .isInstanceOf(IllegalArgumentException::class.java)

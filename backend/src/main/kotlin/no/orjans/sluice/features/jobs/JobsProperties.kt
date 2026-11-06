@@ -49,6 +49,21 @@ data class JobsProperties(
         return minOf(jittered, maxBackoff)
     }
 
+    /**
+     * The wait before the next attempt: the other side's [retryAfter] when it gave one (no jitter: it named
+     * a time), otherwise [backoffAfter]. Never longer than [maxBackoff], never negative.
+     */
+    fun waitBeforeRetry(
+        failedAttempts: Int,
+        retryAfter: Duration?,
+        random: RandomGenerator,
+    ): Duration =
+        if (retryAfter == null) {
+            backoffAfter(failedAttempts, random)
+        } else {
+            retryAfter.coerceIn(Duration.ZERO, maxBackoff)
+        }
+
     data class Worker(
         /** Off in tests (they run the worker by hand) and in the `migrate` profile. */
         val enabled: Boolean,

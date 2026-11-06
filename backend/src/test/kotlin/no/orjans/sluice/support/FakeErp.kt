@@ -25,7 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * - Every later request with the same key gets the *same* answer back (200, `Idempotent-Replayed: true`)
  *   and creates nothing.
  * - SKUs starting with `UNKNOWN` are rejected with 422 and line errors. Rejections are not remembered.
- * - Tests can queue faults for the next requests: a 500 (nothing created), or a delay (the order *is*
+ * - Tests can queue faults for the next requests: any status such as 500 or 429 (nothing created), or a delay (the order *is*
  *   created, then the answer comes late: "processed, but the response was lost").
  */
 class FakeErp : ResponseDefinitionTransformerV2 {
@@ -47,7 +47,13 @@ class FakeErp : ResponseDefinitionTransformerV2 {
 
     fun requests(idempotencyKey: String): Int = requestsByKey[idempotencyKey]?.get() ?: 0
 
-    fun failNextWithServerError() = faults.add(Fault.ServerError)
+    fun failNextWithServerError() = failNextWith(500)
+
+    /** The next request gets [status] and [headers], and creates nothing (e.g. 429 with `Retry-After`). */
+    fun failNextWith(
+        status: Int,
+        headers: Map<String, String> = emptyMap(),
+    ) = faults.add(Fault.Status(status, headers))
 
     fun delayNext(delay: Duration) = faults.add(Fault.Delay(delay))
 
@@ -71,9 +77,21 @@ class FakeErp : ResponseDefinitionTransformerV2 {
         }
         val fault = key?.let { faults.poll() }
         return when {
-            key == null -> status(400, """{"errors":[{"code":"MISSING_IDEMPOTENCY_KEY","message":"Idempotency-Key required"}]}""")
-            fault == Fault.ServerError -> status(500, """{"errors":[{"code":"INTERNAL","message":"ERP down"}]}""")
-            else -> createOrReplay(key, json.readTree(request.bodyAsString), fault)
+            key == null -> {
+                status(400, """{"errors":[{"code":"MISSING_IDEMPOTENCY_KEY","message":"Idempotency-Key required"}]}""")
+            }
+
+            fault is Fault.Status -> {
+                status(
+                    fault.code,
+                    """{"errors":[{"code":"HTTP_${fault.code}","message":"Injected by the test"}]}""",
+                    fault.headers,
+                )
+            }
+
+            else -> {
+                createOrReplay(key, json.readTree(request.bodyAsString), fault)
+            }
         }
     }
 
@@ -119,15 +137,20 @@ class FakeErp : ResponseDefinitionTransformerV2 {
     private fun status(
         code: Int,
         body: String,
+        headers: Map<String, String> = emptyMap(),
     ) = ResponseDefinitionBuilder
         .responseDefinition()
         .withStatus(code)
         .withHeader("Content-Type", "application/json")
+        .apply { headers.forEach { (name, value) -> withHeader(name, value) } }
         .withBody(body)
         .build()
 
     private sealed interface Fault {
-        data object ServerError : Fault
+        data class Status(
+            val code: Int,
+            val headers: Map<String, String>,
+        ) : Fault
 
         data class Delay(
             val duration: Duration,

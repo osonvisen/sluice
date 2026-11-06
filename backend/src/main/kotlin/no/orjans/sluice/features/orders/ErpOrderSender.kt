@@ -3,6 +3,7 @@ package no.orjans.sluice.features.orders
 import no.orjans.sluice.shared.Money
 import no.orjans.sluice.shared.Quantity
 import no.orjans.sluice.shared.Sku
+import java.time.Duration
 import java.time.Instant
 import java.util.Currency
 
@@ -43,14 +44,21 @@ sealed interface ErpSendResult {
         val lines: List<ErpLineConfirmation>,
     ) : ErpSendResult
 
-    /** The ERP refused the order (4xx). Sending it again will not help: a permanent failure. */
+    /**
+     * The ERP refused the order (4xx, except 408, 409 and 429). Sending it again will not help:
+     * a permanent failure.
+     */
     data class Rejected(
         val errors: List<ErpLineError>,
     ) : ErpSendResult
 
-    /** No usable answer (timeout, connection error, 5xx). May work later: a temporary failure. */
+    /**
+     * No usable answer yet (timeout, connection error, 5xx, 408, 409, 429). May work later: a temporary failure.
+     * [retryAfter] is the ERP's own wait time (`Retry-After` on 429), when it gave one.
+     */
     data class Unavailable(
         val reason: String,
+        val retryAfter: Duration? = null,
     ) : ErpSendResult
 }
 

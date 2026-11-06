@@ -8,6 +8,8 @@ import no.orjans.sluice.features.orders.ErpOrderSender
 import no.orjans.sluice.features.orders.ErpSendResult
 import org.slf4j.LoggerFactory
 import org.springframework.boot.context.properties.EnableConfigurationProperties
+import org.springframework.http.HttpHeaders
+import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.client.JdkClientHttpRequestFactory
 import org.springframework.stereotype.Component
@@ -18,12 +20,19 @@ import org.springframework.web.client.RestClient
 import org.springframework.web.client.RestClientException
 import java.math.BigDecimal
 import java.net.http.HttpClient
+import java.time.Clock
+import java.time.Duration
 import java.time.Instant
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
 
 /**
  * The ERP over HTTP (`POST /api/orders`). Maps the ERP's answers to the port's results:
  * - 2xx → [ErpSendResult.Accepted] (201 first time, 200 when the ERP replays an earlier result)
- * - 4xx → [ErpSendResult.Rejected], with the ERP's line errors when it sends them
+ * - 408, 409, 429 → [ErpSendResult.Unavailable]: "not now", not "no". 409 can mean the same
+ *   idempotency key is still being processed; 429 may carry `Retry-After`, which is passed on.
+ * - Other 4xx → [ErpSendResult.Rejected], with the ERP's line errors when it sends them
  * - 5xx, timeout, connection error, unreadable answer → [ErpSendResult.Unavailable]
  */
 @Component
@@ -32,6 +41,7 @@ class HttpErpOrderSender(
     builder: RestClient.Builder,
     properties: ErpProperties,
     jobs: JobsProperties,
+    private val clock: Clock,
 ) : ErpOrderSender {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -78,8 +88,15 @@ class HttpErpOrderSender(
             )
             ErpSendResult.Accepted(body.orderNumber, body.lines.map { ErpLineConfirmation(it.lineNumber, it.erpLineId) })
         } catch (ex: HttpClientErrorException) {
-            log.warn("ERP rejected the order: orderId={} status={}", order.orderReference, ex.statusCode.value())
-            ErpSendResult.Rejected(lineErrors(ex))
+            val status = ex.statusCode.value()
+            val retryable = RETRYABLE_CLIENT_ERRORS[status]
+            if (retryable != null) {
+                log.warn("ERP asked us to try again later: orderId={} status={}", order.orderReference, status)
+                ErpSendResult.Unavailable("HTTP $status from the ERP ($retryable)", retryAfter(ex))
+            } else {
+                log.warn("ERP rejected the order: orderId={} status={}", order.orderReference, status)
+                ErpSendResult.Rejected(lineErrors(ex))
+            }
         } catch (ex: HttpServerErrorException) {
             ErpSendResult.Unavailable("HTTP ${ex.statusCode.value()} from the ERP")
         } catch (ex: ResourceAccessException) {
@@ -89,6 +106,28 @@ class HttpErpOrderSender(
             // Unreadable answer. The ERP may have the order; the retry with the same key will tell.
             log.warn("Unreadable answer from the ERP: orderId={}", order.orderReference, ex)
             ErpSendResult.Unavailable("Unreadable answer from the ERP")
+        }
+
+    /**
+     * `Retry-After` on a 429: seconds ("120") or an HTTP date. Anything else is ignored, and the
+     * worker's own backoff applies. A date in the past means "now".
+     */
+    private fun retryAfter(ex: HttpClientErrorException): Duration? {
+        val value =
+            ex.responseHeaders
+                ?.getFirst(HttpHeaders.RETRY_AFTER)
+                ?.trim()
+                ?.takeIf { ex.statusCode.value() == HttpStatus.TOO_MANY_REQUESTS.value() }
+                ?: return null
+        return value.toLongOrNull()?.let { Duration.ofSeconds(it.coerceAtLeast(0)) }
+            ?: httpDateOrNull(value)?.let { Duration.between(clock.instant(), it).coerceAtLeast(Duration.ZERO) }
+    }
+
+    private fun httpDateOrNull(value: String): Instant? =
+        try {
+            ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant()
+        } catch (_: DateTimeParseException) {
+            null
         }
 
     private fun lineErrors(ex: HttpClientErrorException): List<ErpLineError> {
@@ -115,6 +154,14 @@ class HttpErpOrderSender(
     private companion object {
         const val ORDERS_PATH = "/api/orders"
         const val IDEMPOTENCY_KEY_HEADER = "Idempotency-Key"
+
+        // Client errors that mean "not now" rather than "no", with the wording shown to operators.
+        val RETRYABLE_CLIENT_ERRORS =
+            mapOf(
+                HttpStatus.REQUEST_TIMEOUT.value() to "request timeout",
+                HttpStatus.CONFLICT.value() to "the same order is still being processed",
+                HttpStatus.TOO_MANY_REQUESTS.value() to "rate limited",
+            )
     }
 }
 

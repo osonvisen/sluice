@@ -1,5 +1,7 @@
 package no.orjans.sluice.features.jobs
 
+import java.time.Duration
+
 /**
  * Runs one kind of job. Implement it as a Spring bean and the worker finds it by [type].
  *
@@ -53,10 +55,15 @@ sealed interface JobOutcome {
         override val effects: JobEffects = JobEffects.NONE,
     ) : JobOutcome
 
-    /** May work later (timeout, 5xx). Retried with backoff until the maximum number of attempts. */
+    /**
+     * May work later (timeout, 5xx, rate limit). Retried with backoff until the maximum number of attempts.
+     * [retryAfter] replaces the backoff when the other side said how long to wait (e.g. `Retry-After`);
+     * the worker still never waits longer than `max-backoff`.
+     */
     data class TemporaryFailure(
         val reason: String,
         override val effects: JobEffects = JobEffects.NONE,
+        val retryAfter: Duration? = null,
     ) : JobOutcome
 
     /** A retry cannot fix it (invalid data, unknown product). The job goes straight to `DEAD`. */
