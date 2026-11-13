@@ -2,7 +2,7 @@
 # One image with the Angular app inside the Spring Boot jar (ADR 0005).
 
 # --- 1. Frontend --------------------------------------------------------------------------
-FROM node:24.22.2-alpine AS frontend
+FROM node:26.13.0-alpine AS frontend
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
