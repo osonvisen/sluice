@@ -1,5 +1,6 @@
 package no.orjans.sluice.features.jobs.worker
 
+import no.orjans.sluice.features.jobs.AttemptOutcome
 import no.orjans.sluice.features.jobs.DeadReason
 import no.orjans.sluice.features.jobs.JobContext
 import no.orjans.sluice.features.jobs.JobHandler
