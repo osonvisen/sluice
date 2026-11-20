@@ -4,3 +4,17 @@ logging:
     # JSON log lines (Elastic Common Schema). MDC values such as correlationId are included.
     format:
       console: ecs
+
+# The API description is a map for attackers and has no users in production (PLAN.md, milestone 3).
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+server:
+  servlet:
+    session:
+      cookie:
+        # Production is served over HTTPS only.
+        secure: true

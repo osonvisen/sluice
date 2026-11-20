@@ -11,6 +11,10 @@ import org.springframework.context.annotation.Import
  * - Tests migrate their own throwaway database on startup; the app itself only validates (MigrationConfig).
  * - The job worker does not poll: tests call `JobWorker.runOnce()` and move the [MutableClock] themselves.
  * - Backoff jitter is zero by default ([FixedRandom]); the ERP is a [FakeErp] on WireMock.
+ * - No Keycloak: requests log in with [TestUsers], and [TestOidcConfiguration] avoids OIDC discovery.
+ *
+ * A test that needs another profile (`prod`, `local-noauth`) adds `@ActiveProfiles` and gets its own
+ * context, but shares the one Postgres container ([TestcontainersConfiguration]).
  */
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.RUNTIME)
@@ -26,6 +30,7 @@ import org.springframework.context.annotation.Import
 @AutoConfigureMockMvc
 @Import(
     TestcontainersConfiguration::class,
+    TestOidcConfiguration::class,
     TestClockConfiguration::class,
     TestJobHandlersConfiguration::class,
     FakeErpConfiguration::class,

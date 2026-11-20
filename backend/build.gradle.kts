@@ -29,6 +29,9 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-flyway")
     // Spring Boot 4 ships RestClient auto-configuration (the RestClient.Builder bean) as its own module.
     implementation("org.springframework.boot:spring-boot-starter-restclient")
+    // Login as BFF (ADR 0004). Spring Security's version is managed by the Spring Boot BOM (7.1.2 with Boot 4.1.2).
+    // Boot 4 renamed the starter; spring-boot-starter-oauth2-client is deprecated in its favour.
+    implementation("org.springframework.boot:spring-boot-starter-security-oauth2-client")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.flywaydb:flyway-database-postgresql")
@@ -42,6 +45,8 @@ dependencies {
 
     testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")
     testImplementation("org.springframework.boot:spring-boot-starter-data-jdbc-test")
+    // spring-security-test: oidcLogin() and csrf(), so tests never need Keycloak (ADR 0004).
+    testImplementation("org.springframework.boot:spring-boot-starter-security-oauth2-client-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")

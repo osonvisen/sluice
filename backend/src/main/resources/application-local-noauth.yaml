@@ -1,0 +1,10 @@
+# Development without Keycloak (ADR 0004): every request is a fixed dev user with both roles
+# (LocalNoAuthFilter). Use it whenever you are not working on login itself.
+#   SLUICE_SHOPIFY_WEBHOOK_SECRET=local-dev-secret ./gradlew bootRun --args='--spring.profiles.active=local-noauth'
+# The app refuses to start if this is combined with `prod` (LocalNoAuthGuard).
+spring:
+  autoconfigure:
+    # No identity provider: skip the OIDC client, which would otherwise read Keycloak's discovery document at startup.
+    exclude:
+      - org.springframework.boot.security.oauth2.client.autoconfigure.OAuth2ClientAutoConfiguration
+      - org.springframework.boot.security.oauth2.client.autoconfigure.servlet.OAuth2ClientWebSecurityAutoConfiguration

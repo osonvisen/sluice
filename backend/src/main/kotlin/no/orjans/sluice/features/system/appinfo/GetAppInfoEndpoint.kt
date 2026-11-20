@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import no.orjans.sluice.web.ApiPaths
 import org.springframework.boot.info.BuildProperties
 import org.springframework.http.MediaType
+import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RestController
 
@@ -24,7 +25,9 @@ class GetAppInfoEndpoint(
             version = checkNotNull(buildProperties.version) { "build-info.properties has no version" },
         )
 
+    // Any logged-in user, whatever their permissions: the version holds no business data.
     @GetMapping("${ApiPaths.API}/app-info", produces = [MediaType.APPLICATION_JSON_VALUE])
+    @PreAuthorize("isAuthenticated()")
     fun getAppInfo(): AppInfoResponse = appInfo
 }
 

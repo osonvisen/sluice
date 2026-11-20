@@ -4,11 +4,14 @@ import no.orjans.sluice.features.jobs.JobContext
 import no.orjans.sluice.features.jobs.JobEffects
 import no.orjans.sluice.features.jobs.JobHandler
 import no.orjans.sluice.features.jobs.JobOutcome
+import no.orjans.sluice.features.jobs.JobQueue
 import no.orjans.sluice.features.jobs.JobType
+import no.orjans.sluice.features.jobs.worker.JobWorker
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
 import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.transaction.support.TransactionSynchronizationManager
+import org.springframework.transaction.support.TransactionTemplate
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
@@ -81,4 +84,12 @@ class TestJobHandlersConfiguration {
         jdbc.sql("CREATE TABLE IF NOT EXISTS scripted_job_writes (job_key text NOT NULL)").update()
         return ScriptedJobHandler(jdbc)
     }
+
+    @Bean
+    fun testJobs(
+        queue: JobQueue,
+        worker: JobWorker,
+        handler: ScriptedJobHandler,
+        transactions: TransactionTemplate,
+    ) = TestJobs(queue, worker, handler, transactions)
 }

@@ -8,16 +8,20 @@ import org.testcontainers.utility.DockerImageName
 
 /**
  * One Postgres container for the whole test run. Spring caches the application context per
- * configuration, so every test using [IntegrationTest] shares both the context and the container.
+ * configuration, so every test using [IntegrationTest] shares the context. Tests with another profile
+ * get a context of their own; the container is a JVM-wide singleton, so they still share it instead
+ * of starting one Postgres each (the dev machine has 8 GB of RAM).
  */
 @TestConfiguration(proxyBeanMethods = false)
 class TestcontainersConfiguration {
     @Bean
     @ServiceConnection
-    fun postgresContainer(): PostgreSQLContainer = PostgreSQLContainer(DockerImageName.parse(POSTGRES_IMAGE))
+    fun postgresContainer(): PostgreSQLContainer = POSTGRES
 
     companion object {
         // Same major version as docker-compose.yml, so tests run against what we run locally.
         const val POSTGRES_IMAGE = "postgres:18.6-alpine"
+
+        private val POSTGRES: PostgreSQLContainer by lazy { PostgreSQLContainer(DockerImageName.parse(POSTGRES_IMAGE)) }
     }
 }
