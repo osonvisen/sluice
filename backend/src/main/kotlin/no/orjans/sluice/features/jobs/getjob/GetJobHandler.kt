@@ -51,12 +51,13 @@ class GetJobHandler(
         jdbc
             .sql(
                 """
-                SELECT attempt, started_at, finished_at, outcome, error
+                SELECT $RUN_NUMBER AS run, attempt, started_at, finished_at, outcome, error
                 FROM job_attempts WHERE job_id = :id ORDER BY id
                 """.trimIndent(),
             ).param("id", id.value)
             .query { rs, _ ->
                 JobAttemptResponse(
+                    run = rs.getInt("run"),
                     attempt = rs.getInt("attempt"),
                     startedAt = rs.instant("started_at"),
                     finishedAt = rs.instantOrNull("finished_at"),
@@ -69,15 +70,18 @@ class GetJobHandler(
         jdbc
             .sql(
                 """
-                SELECT a.attempt, l.line_number, l.outcome, l.sent::text AS sent, l.received::text AS received,
+                WITH attempts AS (
+                    SELECT id, attempt, $RUN_NUMBER AS run FROM job_attempts WHERE job_id = :id
+                )
+                SELECT a.run, a.attempt, l.line_number, l.outcome, l.sent::text AS sent, l.received::text AS received,
                        l.error_code, l.error_message, l.logged_at
-                FROM job_line_log l JOIN job_attempts a ON a.id = l.job_attempt_id
-                WHERE a.job_id = :id
+                FROM job_line_log l JOIN attempts a ON a.id = l.job_attempt_id
                 ORDER BY a.id, l.line_number, l.id
                 """.trimIndent(),
             ).param("id", id.value)
             .query { rs, _ ->
                 JobLineLogEntry(
+                    run = rs.getInt("run"),
                     attempt = rs.getInt("attempt"),
                     lineNumber = rs.getInt("line_number"),
                     outcome = LineOutcome.valueOf(rs.getString("outcome")),
@@ -116,6 +120,11 @@ class GetJobHandler(
     private fun ResultSet.instantOrNull(column: String): Instant? = getObject(column, OffsetDateTime::class.java)?.toInstant()
 
     private companion object {
+        /**
+         * Which run an attempt belongs to: 1 for the job's first run, +1 for each manual "Run again", which
+         * starts counting attempts from 1 again. Without it, the history after two reruns reads "1, 1, 1".
+         */
+        const val RUN_NUMBER = "count(*) FILTER (WHERE attempt = 1) OVER (ORDER BY id)"
         val JSON_OBJECT = object : TypeReference<Map<String, Any?>>() {}
     }
 }
@@ -150,6 +159,9 @@ data class GetJobResponse(
 )
 
 data class JobAttemptResponse(
+    /** 1 for the first run, 2 after the first manual "Run again", and so on. */
+    val run: Int,
+    /** The attempt within its run (1 to `maxAttempts`). */
     val attempt: Int,
     val startedAt: Instant,
     /** Null while the attempt is running. */
@@ -159,6 +171,8 @@ data class JobAttemptResponse(
 )
 
 data class JobLineLogEntry(
+    /** The run and attempt the line was logged in, as in [JobAttemptResponse]. */
+    val run: Int,
     val attempt: Int,
     val lineNumber: Int,
     val outcome: LineOutcome,

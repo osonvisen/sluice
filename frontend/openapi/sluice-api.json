@@ -382,6 +382,10 @@
       "JobAttemptResponse" : {
         "type" : "object",
         "properties" : {
+          "run" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
           "attempt" : {
             "type" : "integer",
             "format" : "int32"
@@ -405,11 +409,15 @@
             "type" : [ "string", "null" ]
           }
         },
-        "required" : [ "attempt", "startedAt" ]
+        "required" : [ "attempt", "run", "startedAt" ]
       },
       "JobLineLogEntry" : {
         "type" : "object",
         "properties" : {
+          "run" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
           "attempt" : {
             "type" : "integer",
             "format" : "int32"
@@ -440,7 +448,7 @@
             "format" : "date-time"
           }
         },
-        "required" : [ "attempt", "lineNumber", "loggedAt", "outcome" ]
+        "required" : [ "attempt", "lineNumber", "loggedAt", "outcome", "run" ]
       },
       "LineOutcome" : {
         "type" : "string",

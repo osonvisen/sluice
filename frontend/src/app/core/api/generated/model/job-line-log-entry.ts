@@ -11,6 +11,7 @@ import { LineOutcome } from './line-outcome';
 
 
 export interface JobLineLogEntry { 
+    run: number;
     attempt: number;
     lineNumber: number;
     outcome: LineOutcome;

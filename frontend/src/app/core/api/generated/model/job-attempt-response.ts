@@ -11,6 +11,7 @@ import { AttemptOutcome } from './attempt-outcome';
 
 
 export interface JobAttemptResponse { 
+    run: number;
     attempt: number;
     startedAt: string;
     finishedAt?: string | null;

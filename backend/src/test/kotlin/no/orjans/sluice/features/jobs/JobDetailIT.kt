@@ -101,6 +101,9 @@ class JobDetailIT {
         body.extractingPath("$.attempts").isEqualTo(1)
         body.extractingPath("$.attemptHistory[*].outcome").asArray().containsExactly("PERMANENT_FAILURE", "PERMANENT_FAILURE")
         body.extractingPath("$.lineLog[*].attempt").asArray().containsExactly(1, 1)
+        // Attempts restart at 1 on a rerun; the run number tells the two apart.
+        body.extractingPath("$.attemptHistory[*].run").asArray().containsExactly(1, 2)
+        body.extractingPath("$.lineLog[*].run").asArray().containsExactly(1, 2)
     }
 
     @Test
