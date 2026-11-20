@@ -4,8 +4,8 @@
 #   docker compose up                    → Postgres only
 #   docker compose --profile auth up     → Postgres + Keycloak (only when working on login)
 #   docker compose --profile app up --build --wait
-#                                        → Postgres + migrations + a stand-in ERP + the app image on :8080 (smoke test
-#                                          the Docker image; stop bootRun first, it uses the same port)
+#                                        → Postgres + migrations + a stand-in ERP + Keycloak + the app image on :8080
+#                                          (smoke test the Docker image, ~1.8 GB RAM; stop bootRun first, same port)
 
 services:
   postgres:
@@ -65,6 +65,11 @@ services:
       # Dev-only default; override in .env. The real secret comes from the environment in production.
       SLUICE_SHOPIFY_WEBHOOK_SECRET: ${SLUICE_SHOPIFY_WEBHOOK_SECRET:-local-dev-secret}
       SLUICE_ERP_BASE_URL: http://erp:8080
+      # The app reads Keycloak's discovery document at startup. Inside the network Keycloak is keycloak:8080,
+      # which the browser on the host cannot resolve, so this profile proves the image starts and serves
+      # webhooks and health, not a browser login. Log in with bootRun + `--profile auth` instead (README).
+      SLUICE_OIDC_ISSUER_URI: http://keycloak:8080/realms/sluice
+      SLUICE_OIDC_CLIENT_SECRET: ${SLUICE_OIDC_CLIENT_SECRET:-sluice-web-local-dev-secret}
     ports:
       - "8080:8080"
     depends_on:
@@ -72,6 +77,8 @@ services:
         condition: service_healthy
       erp:
         condition: service_started
+      keycloak:
+        condition: service_healthy
       migrate:
         condition: service_completed_successfully
     mem_limit: 512m
@@ -83,18 +90,35 @@ services:
       retries: 3
       start_period: 60s
 
-  # Realm, users, roles and the MCP client are added in milestone 3 (ADR 0004).
+  # Login (ADR 0004). Imports keycloak/realm-sluice.json at startup: the demo users `operator` and
+  # `approver`, their roles, the web app's client and the MCP client. Dev mode keeps its data inside the
+  # container, so a new container starts from the realm file again (docker compose rm keycloak to reset).
   keycloak:
     image: quay.io/keycloak/keycloak:26.8.2
-    profiles: ["auth"]
-    command: ["start-dev"]
+    # Also in `app`: the app image needs an identity provider to start (it is never started with local-noauth).
+    profiles: ["auth", "app"]
+    command: ["start-dev", "--import-realm"]
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
       JAVA_OPTS_KC_HEAP: "-Xmx512m"
+    volumes:
+      - ./keycloak:/opt/keycloak/data/import:ro
     ports:
       - "8081:8080"
     mem_limit: 768m
+    healthcheck:
+      # No curl in the image: ask for the realm over bash's /dev/tcp.
+      test:
+        - CMD-SHELL
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/8080 &&
+          printf 'GET /realms/sluice HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          grep -q '200 OK' <&3
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
 
 volumes:
   postgres-data:
