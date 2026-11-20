@@ -23,6 +23,14 @@ class LocalNoAuthIT {
     }
 
     @Test
+    fun `the dev user has both roles' permissions`() {
+        val body = assertThat(mvc.get().uri("/api/me")).hasStatusOk().bodyJson()
+
+        body.extractingPath("$.name").isEqualTo("Local developer")
+        body.extractingPath("$.permissions").asArray().containsExactly("approvals.decide", "jobs.read", "jobs.retry")
+    }
+
+    @Test
     fun `csrf protection still applies, so the frontend behaves as with a real login`() {
         assertThat(mvc.post().uri("/api/jobs/${UUID.randomUUID()}/retry").header(HttpHeaders.IF_MATCH, "\"0\""))
             .hasStatus(HttpStatus.FORBIDDEN)

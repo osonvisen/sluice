@@ -25,7 +25,8 @@ class JobQueue(
     private val properties: JobsProperties,
 ) {
     /**
-     * Enqueues a job, unless a job with the same [idempotencyKey] already exists. Under parallel
+     * Enqueues a job, unless a job with the same [idempotencyKey] already exists. The [payload] is shown to
+     * operators in the job detail: keep it to IDs (e.g. `orderId`), never personal data. Under parallel
      * calls the unique constraint decides: exactly one caller gets [EnqueueResult.Enqueued].
      */
     @Transactional(propagation = Propagation.MANDATORY)

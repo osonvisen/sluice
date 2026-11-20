@@ -11,4 +11,6 @@ object Permissions {
     const val JOBS_READ = "jobs.read"
     const val JOBS_RETRY = "jobs.retry"
     const val APPROVALS_DECIDE = "approvals.decide"
+
+    val ALL: Set<String> = setOf(JOBS_READ, JOBS_RETRY, APPROVALS_DECIDE)
 }
