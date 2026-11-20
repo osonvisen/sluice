@@ -23,6 +23,7 @@
     "saveFailed": "Språket kunne ikke lagres. Det gjelder bare i denne nettleseren."
   },
   "home": {
+    "title": "Hjem",
     "heading": "Velkommen til Sluice",
     "intro": "Sluice flytter ordrer og produktdata mellom nettbutikken, lageret og ERP-systemet.",
     "openJobs": "Åpne joboversikten",
@@ -64,6 +65,7 @@
       "orderLink": "Ordre {{orderNumber}}"
     },
     "detail": {
+      "title": "Jobb",
       "back": "← Alle jobber",
       "summary": "Sammendrag",
       "payload": "Hva jobben jobber med",

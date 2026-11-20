@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { RouterLink } from '@angular/router';
 import { TranslocoDirective } from '@jsverse/transloco';
@@ -24,5 +24,5 @@ import { Permission } from '../../core/auth/permissions';
 })
 export class Home {
   protected readonly auth = inject(AuthService);
-  protected readonly canReadJobs = () => this.auth.hasPermission(Permission.JobsRead);
+  protected readonly canReadJobs = computed(() => this.auth.hasPermission(Permission.JobsRead));
 }

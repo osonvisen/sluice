@@ -1,12 +1,12 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { TranslocoDirective } from '@jsverse/transloco';
-import { EMPTY, catchError, of } from 'rxjs';
+import { EMPTY, Subject, catchError, of, switchMap } from 'rxjs';
 import { AppInfoResponse, SystemService } from '../api/generated';
 import { AuthService } from '../auth/auth.service';
 import { BROWSER_LOCATION } from '../auth/browser-location';
@@ -55,19 +55,33 @@ export class Shell {
       .pipe(catchError(() => of(null))),
   );
 
+  /**
+   * Saves go through switchMap: a newer choice cancels the save still in flight, so two quick switches
+   * can never reach the server in the wrong order and leave it with another language than the screen.
+   */
+  private readonly languageChoices = new Subject<Language>();
+
+  constructor() {
+    this.languageChoices
+      .pipe(
+        switchMap((language) =>
+          (this.auth.saveLanguage(language) ?? EMPTY).pipe(
+            catchError(() => {
+              // The language is still switched here; it just won't follow the user to another device.
+              this.languageSaveFailed.set(true);
+              return EMPTY;
+            }),
+          ),
+        ),
+        takeUntilDestroyed(),
+      )
+      .subscribe();
+  }
+
   protected changeLanguage(language: Language): void {
     this.languageService.use(language);
     this.languageSaveFailed.set(false);
-    this.auth
-      .saveLanguage(language)
-      ?.pipe(
-        catchError(() => {
-          // The language is still switched here; it just won't follow the user to another device.
-          this.languageSaveFailed.set(true);
-          return EMPTY;
-        }),
-      )
-      .subscribe();
+    this.languageChoices.next(language);
   }
 
   protected logout(): void {

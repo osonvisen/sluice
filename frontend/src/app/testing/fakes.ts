@@ -8,6 +8,8 @@ import { Permission } from '../core/auth/permissions';
 /** Records full-page navigations instead of leaving the test page. */
 export class FakeLocation implements BrowserLocation {
   readonly assigned: string[] = [];
+  pathname = '/';
+  search = '';
   reloads = 0;
 
   assign(url: string | URL): void {

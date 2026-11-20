@@ -16,7 +16,7 @@
     </header>
 
     @if (progress(); as text) {
-      <p class="progress" aria-live="polite">{{ t(text.key, text.params) }}</p>
+      <p class="progress">{{ t(text.key, text.params) }}</p>
     }
 
     @if (showRunAgain()) {
@@ -42,8 +42,10 @@
           <dt>{{ t('jobs.fields.lastError') }}</dt>
           <dd>{{ job.lastError }}</dd>
         }
-        <dt>{{ t('jobs.fields.nextRun') }}</dt>
-        <dd>{{ job.nextRunAt | dateTime: language() }}</dd>
+        @if (isActive()) {
+          <dt>{{ t('jobs.fields.nextRun') }}</dt>
+          <dd>{{ job.nextRunAt | dateTime: language() }}</dd>
+        }
         <dt>{{ t('jobs.fields.created') }}</dt>
         <dd>{{ job.createdAt | dateTime: language() }}</dd>
         <dt>{{ t('jobs.fields.updated') }}</dt>

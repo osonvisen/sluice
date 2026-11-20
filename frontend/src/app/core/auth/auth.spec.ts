@@ -7,7 +7,7 @@ import { FakeLocation } from '../../testing/fakes';
 import { translocoTesting } from '../../testing/i18n';
 import { AuthService } from './auth.service';
 import { BROWSER_LOCATION } from './browser-location';
-import { LOGIN_PATH } from './login-redirect';
+import { LOGIN_PATH, LoginRedirect } from './login-redirect';
 import { Permission } from './permissions';
 import { unauthorizedInterceptor } from './unauthorized.interceptor';
 
@@ -124,4 +124,36 @@ describe('login and session', () => {
     expect(request.request.body).toEqual({ language: 'nb' });
     request.flush(null, { status: 204, statusText: 'No Content' });
   });
+});
+
+describe('return to the page after login', () => {
+  let location: FakeLocation;
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    location = new FakeLocation();
+    TestBed.configureTestingModule({
+      providers: [{ provide: BROWSER_LOCATION, useValue: location }],
+    });
+  });
+
+  it('remembers the page the user was on, once', () => {
+    location.pathname = '/jobs/42';
+    location.search = '?tab=lines';
+    const redirect = TestBed.inject(LoginRedirect);
+
+    redirect.redirect();
+
+    expect(redirect.takeReturnTo()).toBe('/jobs/42?tab=lines');
+    expect(redirect.takeReturnTo()).toBeNull();
+  });
+
+  it.each(['//evil.example/jobs', 'https://evil.example', '/\\evil.example', 'jobs'])(
+    'never returns to %s (open redirect)',
+    (value) => {
+      sessionStorage.setItem('sluice.returnTo', value);
+
+      expect(TestBed.inject(LoginRedirect).takeReturnTo()).toBeNull();
+    },
+  );
 });

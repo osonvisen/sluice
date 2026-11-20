@@ -23,6 +23,7 @@
     "saveFailed": "Your language could not be saved. It applies in this browser only."
   },
   "home": {
+    "title": "Home",
     "heading": "Welcome to Sluice",
     "intro": "Sluice moves orders and product data between the webshop, the warehouse and the ERP.",
     "openJobs": "Open the job overview",
@@ -64,6 +65,7 @@
       "orderLink": "Order {{orderNumber}}"
     },
     "detail": {
+      "title": "Job",
       "back": "← All jobs",
       "summary": "Summary",
       "payload": "What the job works on",

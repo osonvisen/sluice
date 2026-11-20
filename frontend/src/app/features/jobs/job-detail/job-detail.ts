@@ -1,12 +1,21 @@
 import { HttpErrorResponse, HttpStatusCode } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  signal,
+  untracked,
+} from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 import { RouterLink } from '@angular/router';
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
-import { JobsService } from '../../../core/api/generated';
+import { AttemptOutcome, JobStatus, JobsService, LineOutcome } from '../../../core/api/generated';
 import { AuthService } from '../../../core/auth/auth.service';
 import { Permission } from '../../../core/auth/permissions';
 import { LanguageService } from '../../../core/i18n/language.service';
@@ -18,17 +27,20 @@ import { toProblem } from '../../../shared/problem/problem';
 import { StatusChip, StatusTone } from '../../../shared/status-chip/status-chip';
 import { canRunAgain, describeAttempts, statusTone } from '../job-presentation';
 
-const OUTCOME_TONES: Readonly<Record<string, StatusTone>> = {
-  SUCCEEDED: 'success',
-  ACCEPTED: 'success',
-  TEMPORARY_FAILURE: 'warning',
-  LEASE_EXPIRED: 'warning',
-  NO_RESPONSE: 'warning',
-  PERMANENT_FAILURE: 'error',
-  REJECTED: 'error',
-  ORDER_REJECTED: 'error',
-  INVALID: 'error',
+// Typed by the generated enums, so a new or renamed outcome in the API fails to compile here.
+const OUTCOME_TONES: Readonly<Record<AttemptOutcome | LineOutcome, StatusTone>> = {
+  [AttemptOutcome.Succeeded]: 'success',
+  [AttemptOutcome.TemporaryFailure]: 'warning',
+  [AttemptOutcome.PermanentFailure]: 'error',
+  [AttemptOutcome.LeaseExpired]: 'warning',
+  [LineOutcome.Accepted]: 'success',
+  [LineOutcome.Rejected]: 'error',
+  [LineOutcome.OrderRejected]: 'error',
+  [LineOutcome.Invalid]: 'error',
+  [LineOutcome.NoResponse]: 'warning',
 };
+
+const NOTICE_DURATION_MS = 5000;
 
 /**
  * One job: what it works on, every attempt, and what was sent to the ERP per order line, with "Run again"
@@ -97,8 +109,36 @@ export class JobDetail {
   });
   protected readonly retrying = signal(false);
 
-  protected outcomeTone(outcome: string | null | undefined): StatusTone {
-    return (outcome && OUTCOME_TONES[outcome]) || 'neutral';
+  /** Still on its way somewhere: waiting, running or retrying. Only then is "next run" meaningful. */
+  protected readonly isActive = computed(() => {
+    const status = this.job()?.status;
+    return (
+      status === JobStatus.Pending || status === JobStatus.Running || status === JobStatus.Failed
+    );
+  });
+
+  constructor() {
+    // The page is a snapshot. When the clock passes the job's next run (or while it runs), fetch it again,
+    // so the text never says "next attempt shortly" about a job that has long moved on. Only the clock's
+    // tick triggers this (the job is read untracked), so a reload can never trigger another one.
+    let firstTick = true;
+    effect(() => {
+      const now = this.now();
+      untracked(() => {
+        const job = this.job();
+        if (firstTick || !job || !this.isActive() || this.response.isLoading()) {
+          firstTick = false;
+          return;
+        }
+        if (job.status === JobStatus.Running || new Date(job.nextRunAt) <= now) {
+          this.reload();
+        }
+      });
+    });
+  }
+
+  protected outcomeTone(outcome: AttemptOutcome | LineOutcome | null | undefined): StatusTone {
+    return outcome ? OUTCOME_TONES[outcome] : 'neutral';
   }
 
   protected json(value: unknown): string {
@@ -115,7 +155,7 @@ export class JobDetail {
       next: () => {
         this.retrying.set(false);
         this.snackBar.open(this.transloco.translate('jobs.detail.runAgainDone'), undefined, {
-          duration: 5000,
+          duration: NOTICE_DURATION_MS,
         });
         this.reload();
       },

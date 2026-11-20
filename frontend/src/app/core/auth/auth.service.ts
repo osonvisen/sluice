@@ -1,5 +1,6 @@
 import { HttpClient, HttpErrorResponse, HttpStatusCode } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { Observable, firstValueFrom } from 'rxjs';
 import { MeResponse, MeService } from '../api/generated';
 import { Language } from '../i18n/languages';
@@ -21,6 +22,7 @@ export class AuthService {
   private readonly language = inject(LanguageService);
   private readonly loginRedirect = inject(LoginRedirect);
   private readonly location = inject(BROWSER_LOCATION);
+  private readonly router = inject(Router);
 
   private readonly state = signal<{ status: AuthStatus; me: MeResponse | null }>({
     status: 'loading',
@@ -40,6 +42,10 @@ export class AuthService {
       this.loginRedirect.succeeded();
       this.state.set({ status: 'authenticated', me });
       this.language.applyUserChoice(me.language);
+      const returnTo = this.loginRedirect.takeReturnTo();
+      if (returnTo) {
+        void this.router.navigateByUrl(returnTo);
+      }
     } catch (error) {
       if (error instanceof HttpErrorResponse && error.status === HttpStatusCode.Unauthorized) {
         if (this.loginRedirect.failed()) {
