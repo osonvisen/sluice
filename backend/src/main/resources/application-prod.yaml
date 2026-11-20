@@ -13,6 +13,10 @@ springdoc:
     enabled: false
 
 server:
+  # Production runs behind a TLS-terminating proxy (Cloud Run, milestone 6). Trust its X-Forwarded-* headers,
+  # so URLs built from the request ({baseUrl} in the login and logout redirects) are https and the public
+  # host, and the XSRF-TOKEN cookie gets Secure (it follows request.isSecure).
+  forward-headers-strategy: framework
   servlet:
     session:
       cookie:
