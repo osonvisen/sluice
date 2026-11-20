@@ -2,16 +2,135 @@
   "app": {
     "title": "Sluice",
     "skipToContent": "Skip to main content",
+    "navigation": "Main",
     "version": "Version {{version}}",
     "versionUnavailable": "Version unavailable"
+  },
+  "nav": {
+    "jobs": "Jobs"
+  },
+  "auth": {
+    "logout": "Log out",
+    "loginFailed": {
+      "title": "Could not log you in",
+      "detail": "You were sent back from the login page without a session. Check that cookies are allowed for this site, then try again."
+    }
   },
   "language": {
     "label": "Language",
     "en": "English",
-    "nb": "Norsk bokmål"
+    "nb": "Norsk bokmål",
+    "saveFailed": "Your language could not be saved. It applies in this browser only."
   },
   "home": {
     "heading": "Welcome to Sluice",
-    "intro": "Sluice moves orders and product data between the webshop, the warehouse and the ERP. Job overview, products and approvals are on their way."
+    "intro": "Sluice moves orders and product data between the webshop, the warehouse and the ERP.",
+    "openJobs": "Open the job overview",
+    "noAccess": "You are logged in, but your user has no access to anything here yet. Ask an administrator for the operator or approver role."
+  },
+  "table": {
+    "loading": "Loading…",
+    "itemsPerPage": "Rows per page",
+    "nextPage": "Next page",
+    "previousPage": "Previous page",
+    "firstPage": "First page",
+    "lastPage": "Last page",
+    "range": "{{from}}–{{to}} of {{total}}",
+    "rangeEmpty": "0 of 0"
+  },
+  "errors": {
+    "generic": {
+      "title": "Something went wrong",
+      "detail": "Please try again. If it keeps happening, contact support."
+    },
+    "network": {
+      "title": "Sluice cannot be reached",
+      "detail": "Check your connection, or try again in a moment."
+    },
+    "reference": "Reference for support: {{id}}",
+    "retry": "Try again",
+    "dismiss": "Close"
+  },
+  "jobs": {
+    "list": {
+      "heading": "Jobs",
+      "statusFilter": "Status",
+      "allStatuses": "All statuses",
+      "search": "Order number or job ID",
+      "searchHint": "For example 1042 or #1042",
+      "searchButton": "Search",
+      "empty": "There are no jobs yet.",
+      "noMatches": "No jobs match the filter.",
+      "orderLink": "Order {{orderNumber}}"
+    },
+    "detail": {
+      "back": "← All jobs",
+      "summary": "Summary",
+      "payload": "What the job works on",
+      "attempts": "Attempts",
+      "noAttempts": "The job has not run yet.",
+      "lines": "Order lines sent to the ERP",
+      "noLines": "No order lines were logged for this job.",
+      "runAgain": "Run again",
+      "runAgainDone": "The job will run again shortly."
+    },
+    "fields": {
+      "status": "Status",
+      "job": "Job",
+      "progress": "Progress",
+      "lastError": "Last error",
+      "created": "Created",
+      "updated": "Updated",
+      "type": "Type",
+      "id": "Job ID",
+      "deadReason": "Stopped because",
+      "nextRun": "Next run",
+      "run": "Run",
+      "attempt": "Attempt",
+      "started": "Started",
+      "finished": "Finished",
+      "outcome": "Outcome",
+      "error": "Error",
+      "line": "Line",
+      "sent": "Sent",
+      "received": "Received"
+    },
+    "status": {
+      "PENDING": "Waiting",
+      "RUNNING": "Running",
+      "SUCCEEDED": "Succeeded",
+      "FAILED": "Failed, will retry",
+      "DEAD": "Stopped"
+    },
+    "deadReason": {
+      "PERMANENT": "The error cannot be fixed by trying again",
+      "EXHAUSTED": "Every attempt was used"
+    },
+    "type": {
+      "order.import": "Order import"
+    },
+    "attempts": {
+      "queued": "Waiting for a worker",
+      "scheduled": "First attempt {{when}}",
+      "running": "Attempt {{attempt}} of {{max}} is running",
+      "retrying": "Attempt {{attempt}} of {{max}} failed – next attempt {{when}}",
+      "retryingNow": "Attempt {{attempt}} of {{max}} failed – next attempt shortly",
+      "succeeded": "Succeeded on attempt {{attempt}} of {{max}}",
+      "deadPermanent": "Stopped after attempt {{attempt}}: trying again would not help",
+      "deadExhausted": "Gave up after {{attempt}} of {{max}} attempts"
+    },
+    "attemptOutcome": {
+      "SUCCEEDED": "Succeeded",
+      "TEMPORARY_FAILURE": "Temporary error",
+      "PERMANENT_FAILURE": "Permanent error",
+      "LEASE_EXPIRED": "Worker stopped"
+    },
+    "lineOutcome": {
+      "ACCEPTED": "Accepted",
+      "REJECTED": "Rejected",
+      "ORDER_REJECTED": "Order rejected",
+      "INVALID": "Not sent: invalid",
+      "NO_RESPONSE": "No answer"
+    }
   }
 }

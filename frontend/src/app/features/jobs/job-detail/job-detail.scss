@@ -1,0 +1,59 @@
+.back {
+  display: inline-block;
+  margin-bottom: var(--sluice-space-md);
+}
+
+.heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sluice-space-md);
+
+  h1 {
+    margin: 0;
+  }
+}
+
+.progress {
+  font: var(--mat-sys-title-medium);
+}
+
+section {
+  margin-top: var(--sluice-space-lg);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--sluice-space-xs) var(--sluice-space-md);
+  margin: 0;
+
+  dt {
+    font-weight: 500;
+  }
+
+  dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+}
+
+.json {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+// Phones: label above value instead of beside it.
+@media (max-width: 599.98px) {
+  .facts {
+    grid-template-columns: 1fr;
+
+    dd {
+      margin-bottom: var(--sluice-space-sm);
+    }
+  }
+}

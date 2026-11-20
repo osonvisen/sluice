@@ -1,0 +1,168 @@
+<ng-container *transloco="let t">
+  <a routerLink="/jobs" class="back">{{ t('jobs.detail.back') }}</a>
+
+  @if (problem(); as problem) {
+    <app-error-state [problem]="problem" [retryable]="problem.status !== 404" (retry)="reload()" />
+  } @else if (job(); as job) {
+    <header class="heading">
+      <h1>
+        {{
+          job.orderNumber
+            ? t('jobs.list.orderLink', { orderNumber: job.orderNumber })
+            : t('jobs.type.' + job.type)
+        }}
+      </h1>
+      <app-status-chip [label]="t('jobs.status.' + job.status)" [tone]="statusTone(job.status)" />
+    </header>
+
+    @if (progress(); as text) {
+      <p class="progress" aria-live="polite">{{ t(text.key, text.params) }}</p>
+    }
+
+    @if (showRunAgain()) {
+      <button mat-flat-button type="button" [disabled]="retrying()" (click)="runAgain()">
+        {{ t('jobs.detail.runAgain') }}
+      </button>
+    }
+
+    <section aria-labelledby="summary-heading">
+      <h2 id="summary-heading">{{ t('jobs.detail.summary') }}</h2>
+      <dl class="facts">
+        <dt>{{ t('jobs.fields.type') }}</dt>
+        <dd>{{ t('jobs.type.' + job.type) }}</dd>
+        <dt>{{ t('jobs.fields.id') }}</dt>
+        <dd>
+          <code>{{ job.id }}</code>
+        </dd>
+        @if (job.deadReason) {
+          <dt>{{ t('jobs.fields.deadReason') }}</dt>
+          <dd>{{ t('jobs.deadReason.' + job.deadReason) }}</dd>
+        }
+        @if (job.lastError) {
+          <dt>{{ t('jobs.fields.lastError') }}</dt>
+          <dd>{{ job.lastError }}</dd>
+        }
+        <dt>{{ t('jobs.fields.nextRun') }}</dt>
+        <dd>{{ job.nextRunAt | dateTime: language() }}</dd>
+        <dt>{{ t('jobs.fields.created') }}</dt>
+        <dd>{{ job.createdAt | dateTime: language() }}</dd>
+        <dt>{{ t('jobs.fields.updated') }}</dt>
+        <dd>{{ job.updatedAt | dateTime: language() }}</dd>
+      </dl>
+    </section>
+
+    <section aria-labelledby="payload-heading">
+      <h2 id="payload-heading">{{ t('jobs.detail.payload') }}</h2>
+      <dl class="facts">
+        @for (entry of payload(); track entry[0]) {
+          <dt>{{ entry[0] }}</dt>
+          <dd>
+            <code>{{ json(entry[1]) }}</code>
+          </dd>
+        }
+      </dl>
+    </section>
+
+    <section aria-labelledby="attempts-heading">
+      <h2 id="attempts-heading">{{ t('jobs.detail.attempts') }}</h2>
+      <app-data-table
+        [caption]="t('jobs.detail.attempts')"
+        [rows]="job.attemptHistory"
+        [columns]="attemptColumns"
+        [emptyMessage]="t('jobs.detail.noAttempts')"
+      >
+        <ng-container matColumnDef="run">
+          <th mat-header-cell *matHeaderCellDef>{{ t('jobs.fields.run') }}</th>
+          <td mat-cell *matCellDef="let attempt">{{ attempt.run }}</td>
+        </ng-container>
+        <ng-container matColumnDef="attempt">
+          <th mat-header-cell *matHeaderCellDef>{{ t('jobs.fields.attempt') }}</th>
+          <td mat-cell *matCellDef="let attempt">{{ attempt.attempt }}</td>
+        </ng-container>
+        <ng-container matColumnDef="started">
+          <th mat-header-cell *matHeaderCellDef>{{ t('jobs.fields.started') }}</th>
+          <td mat-cell *matCellDef="let attempt" class="nowrap">
+            {{ attempt.startedAt | dateTime: language() }}
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="finished">
+          <th mat-header-cell *matHeaderCellDef>{{ t('jobs.fields.finished') }}</th>
+          <td mat-cell *matCellDef="let attempt" class="nowrap">
+            {{ attempt.finishedAt | dateTime: language() }}
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="outcome">
+          <th mat-header-cell *matHeaderCellDef>{{ t('jobs.fields.outcome') }}</th>
+          <td mat-cell *matCellDef="let attempt">
+            <app-status-chip
+              [label]="
+                attempt.outcome
+                  ? t('jobs.attemptOutcome.' + attempt.outcome)
+                  : t('jobs.status.RUNNING')
+              "
+              [tone]="attempt.outcome ? outcomeTone(attempt.outcome) : 'info'"
+            />
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="error">
+          <th mat-header-cell *matHeaderCellDef>{{ t('jobs.fields.error') }}</th>
+          <td mat-cell *matCellDef="let attempt">{{ attempt.error }}</td>
+        </ng-container>
+      </app-data-table>
+    </section>
+
+    <section aria-labelledby="lines-heading">
+      <h2 id="lines-heading">{{ t('jobs.detail.lines') }}</h2>
+      <app-data-table
+        [caption]="t('jobs.detail.lines')"
+        [rows]="job.lineLog"
+        [columns]="lineColumns"
+        [emptyMessage]="t('jobs.detail.noLines')"
+      >
+        <ng-container matColumnDef="run">
+          <th mat-header-cell *matHeaderCellDef>{{ t('jobs.fields.run') }}</th>
+          <td mat-cell *matCellDef="let line">{{ line.run }}</td>
+        </ng-container>
+        <ng-container matColumnDef="attempt">
+          <th mat-header-cell *matHeaderCellDef>{{ t('jobs.fields.attempt') }}</th>
+          <td mat-cell *matCellDef="let line">{{ line.attempt }}</td>
+        </ng-container>
+        <ng-container matColumnDef="line">
+          <th mat-header-cell *matHeaderCellDef>{{ t('jobs.fields.line') }}</th>
+          <td mat-cell *matCellDef="let line">{{ line.lineNumber }}</td>
+        </ng-container>
+        <ng-container matColumnDef="outcome">
+          <th mat-header-cell *matHeaderCellDef>{{ t('jobs.fields.outcome') }}</th>
+          <td mat-cell *matCellDef="let line">
+            <app-status-chip
+              [label]="t('jobs.lineOutcome.' + line.outcome)"
+              [tone]="outcomeTone(line.outcome)"
+            />
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="sent">
+          <th mat-header-cell *matHeaderCellDef>{{ t('jobs.fields.sent') }}</th>
+          <td mat-cell *matCellDef="let line">
+            <code class="json">{{ json(line.sent) }}</code>
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="received">
+          <th mat-header-cell *matHeaderCellDef>{{ t('jobs.fields.received') }}</th>
+          <td mat-cell *matCellDef="let line">
+            <code class="json">{{ json(line.received) }}</code>
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="error">
+          <th mat-header-cell *matHeaderCellDef>{{ t('jobs.fields.error') }}</th>
+          <td mat-cell *matCellDef="let line">
+            @if (line.errorCode) {
+              <code>{{ line.errorCode }}</code> {{ line.errorMessage }}
+            }
+          </td>
+        </ng-container>
+      </app-data-table>
+    </section>
+  } @else if (loading()) {
+    <p role="status">{{ t('table.loading') }}</p>
+  }
+</ng-container>

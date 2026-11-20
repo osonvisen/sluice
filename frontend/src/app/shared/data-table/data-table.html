@@ -1,0 +1,33 @@
+<!-- No *transloco wrapper here: the table must be static, so the projected columns can be added before it renders. -->
+@if (loading()) {
+  <mat-progress-bar mode="indeterminate" [attr.aria-label]="'table.loading' | transloco" />
+}
+
+@if (error(); as problem) {
+  <app-error-state [problem]="problem" (retry)="retry.emit()" />
+}
+
+<div class="scroll" [hidden]="error() !== null">
+  <table mat-table [dataSource]="rows()" [attr.aria-busy]="loading()">
+    <caption class="visually-hidden">
+      {{
+        caption()
+      }}
+    </caption>
+    <tr mat-header-row *matHeaderRowDef="columns()"></tr>
+    <tr mat-row *matRowDef="let row; columns: columns()"></tr>
+  </table>
+  @if (!loading() && rows().length === 0) {
+    <app-empty-state [message]="emptyMessage()" />
+  }
+</div>
+
+@if (error() === null && total() > 0) {
+  <mat-paginator
+    [length]="total()"
+    [pageIndex]="pageIndex()"
+    [pageSize]="pageSize()"
+    [pageSizeOptions]="pageSizeOptions()"
+    (page)="page.emit($event)"
+  />
+}

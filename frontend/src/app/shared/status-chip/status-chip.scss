@@ -1,0 +1,32 @@
+.chip {
+  display: inline-block;
+  padding: var(--sluice-space-xxs) var(--sluice-space-sm);
+  border-radius: var(--sluice-chip-radius);
+  font: var(--mat-sys-label-medium);
+  white-space: nowrap;
+}
+
+.tone-success {
+  background: var(--sluice-status-success-container);
+  color: var(--sluice-status-on-success-container);
+}
+
+.tone-info {
+  background: var(--mat-sys-primary-container);
+  color: var(--mat-sys-on-primary-container);
+}
+
+.tone-warning {
+  background: var(--sluice-status-warning-container);
+  color: var(--sluice-status-on-warning-container);
+}
+
+.tone-error {
+  background: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+}
+
+.tone-neutral {
+  background: var(--mat-sys-surface-container-highest);
+  color: var(--mat-sys-on-surface);
+}

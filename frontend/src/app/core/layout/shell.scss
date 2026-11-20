@@ -48,3 +48,25 @@
     top: var(--sluice-space-sm);
   }
 }
+
+.toolbar {
+  flex-wrap: wrap;
+  height: auto;
+  min-height: var(--mat-toolbar-standard-height);
+  padding-block: var(--sluice-space-xs);
+}
+
+.active {
+  background: var(--mat-sys-secondary-container);
+}
+
+.user {
+  font: var(--mat-sys-body-medium);
+}
+
+.notice {
+  margin: 0;
+  padding: var(--sluice-space-sm) var(--sluice-space-lg);
+  background: var(--sluice-status-warning-container);
+  color: var(--sluice-status-on-warning-container);
+}
