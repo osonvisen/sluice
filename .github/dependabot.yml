@@ -1,13 +1,19 @@
-# Weekly dependency updates. Grouped per ecosystem so we get one PR each, not dozens.
+# Weekly dependency updates, grouped so each ecosystem gives one PR for minor and patch updates.
+# Major updates get their own PR, so a breaking change never hides in a group.
 version: 2
 updates:
   - package-ecosystem: gradle
     directory: /backend
     schedule:
       interval: weekly
+    ignore:
+      # Kotlin follows the version Spring Boot manages (kotlin-bom in the Boot BOM, see libs.versions.toml).
+      # It is bumped by hand together with Spring Boot, never on its own.
+      - dependency-name: 'org.jetbrains.kotlin*'
     groups:
       backend:
         patterns: ['*']
+        update-types: [minor, patch]
 
   - package-ecosystem: npm
     directory: /frontend
@@ -16,15 +22,28 @@ updates:
     groups:
       angular:
         patterns: ['@angular/*', '@angular-devkit/*', 'angular-eslint']
+        update-types: [minor, patch]
       frontend:
         patterns: ['*']
+        update-types: [minor, patch]
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    groups:
+      actions:
+        patterns: ['*']
 
   - package-ecosystem: docker
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # The JDK stays on the LTS line (ADR 0006: JDK 25). Only patch updates of that line come in;
+      # moving to the next LTS is a new ADR, not a Dependabot PR.
+      - dependency-name: eclipse-temurin
+        update-types: ['version-update:semver-major']
+    groups:
+      docker:
+        patterns: ['*']
