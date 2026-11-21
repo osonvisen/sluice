@@ -104,6 +104,19 @@ Goal: the project itself is the demo. A visitor can try Sluice in the browser, s
 - Decide whether the split screen can be popped out to a second window (for example with `BroadcastChannel`) or stays one page.
 - Tests: each scenario as an integration test through the real flow; a test that one visitor cannot see another visitor's data; a test that demo endpoints do not exist without the `demo` profile.
 
+**Steps**
+
+Work in four steps, one commit series each, with all checks green before the next step starts. Stop for review at the end of the milestone.
+
+- **3.5.0 – Preparation (from the Milestone 3 review).**
+  - Upgrade Spring Boot to the latest stable (4.2.x) as its own `chore` commit, before any feature work. If it needs more than trivial fixes, stop and ask.
+  - Move the browser click-through test (Playwright) into the repository and run it in CI. The demo is an end-to-end flow, so this test is needed from here on.
+  - Make browser login work against the Docker Compose `app` profile (today Keycloak is `keycloak:8080` inside the Docker network, which a browser cannot reach). Decide how the issuer URL is configured; this must also work for the public deploy (milestone 6).
+  - Record who started a manual "Run again" (the user's identity), in the smallest way that milestone 5's audit log can absorb later. Adding a table is a critical decision: ask first.
+- **3.5a – Demo backend.** The `demo` profile, the demo ERP behind the port, the scenarios, the per-visitor sandbox, the `/api/demo/**` endpoints, compressed time, and the integration tests.
+- **3.5b – Demo frontend.** The split screen (customer and behind the scenes), the Operations tab on the milestone 3 views, scenario buttons, the live timeline, and the explanations (en/nb) linked to the ADRs.
+- **3.5c – Hardening.** Rate limiting and limits on demo data, clean-up of old demo sessions, the end-to-end test of every scenario, and the README section.
+
 ## Milestone 4 – Product data and quality
 - `products` with SKU, GTIN, attributes (JSONB) and images. Name and description are stored per locale (at least `en` and `nb`).
 - GTIN validation with the GS1 check digit (GTIN-8/12/13/14), with good unit tests.
