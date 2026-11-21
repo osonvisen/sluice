@@ -1,6 +1,7 @@
 package no.orjans.sluice.infrastructure.web
 
 import no.orjans.sluice.support.IntegrationTest
+import no.orjans.sluice.support.TestUsers
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -14,7 +15,7 @@ class SpaFallbackIT {
     lateinit var mvc: MockMvcTester
 
     @Test
-    fun `deep link to a client route serves index html`() {
+    fun `deep link to a client route serves index html, also when logged out`() {
         assertThat(mvc.get().uri("/jobs/42"))
             .hasStatusOk()
             .bodyText()
@@ -23,7 +24,7 @@ class SpaFallbackIT {
 
     @Test
     fun `unknown api path is a 404 problem, not the app shell`() {
-        assertThat(mvc.get().uri("/api/does-not-exist"))
+        assertThat(mvc.get().uri("/api/does-not-exist").with(TestUsers.operator()))
             .hasStatus(HttpStatus.NOT_FOUND)
             .bodyJson()
             .extractingPath("$.code")

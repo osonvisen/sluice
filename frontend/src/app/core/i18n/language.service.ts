@@ -1,12 +1,16 @@
 import { DOCUMENT, Injectable, inject, signal } from '@angular/core';
 import { TranslocoService } from '@jsverse/transloco';
-import { Language, resolveInitialLanguage } from './languages';
+import { Language, isLanguage, resolveInitialLanguage } from './languages';
 
 const STORAGE_KEY = 'sluice.language';
 
 /**
- * The active UI language. The choice is remembered in the browser for now; it moves to the
- * user profile once login exists (milestone 3).
+ * The active UI language (ADR 0006, ADR 0011).
+ *
+ * At startup: the choice remembered in this browser, then the browser language, then English. Once
+ * logged in, the choice stored on the user wins ([applyUserChoice]), so it follows the person to other
+ * devices. Saving a new choice on the server is `AuthService.saveLanguage`; the browser copy stays as
+ * the fallback for logged-out visitors.
  */
 @Injectable({ providedIn: 'root' })
 export class LanguageService {
@@ -24,6 +28,13 @@ export class LanguageService {
   use(language: Language): void {
     this.apply(language);
     this.store(language);
+  }
+
+  /** The language stored on the logged-in user, if they chose one. Anything unknown is ignored. */
+  applyUserChoice(language: string | null | undefined): void {
+    if (isLanguage(language)) {
+      this.use(language);
+    }
   }
 
   private apply(language: Language): void {

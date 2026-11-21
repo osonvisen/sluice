@@ -1,0 +1,30 @@
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--sluice-space-md);
+  margin-bottom: var(--sluice-space-md);
+}
+
+.search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--sluice-space-sm);
+}
+
+.search button {
+  // Line up with the 56 px outlined field, not with its hint.
+  margin-top: var(--sluice-space-sm);
+}
+
+.last-error {
+  max-width: var(--sluice-text-column-width);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nowrap {
+  white-space: nowrap;
+}

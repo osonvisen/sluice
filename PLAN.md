@@ -40,17 +40,82 @@ Architecture decisions are in `docs/adr/`. Read them before starting a milestone
 - Validation errors (missing SKU, unknown product) → the job fails with a clear explanation and is not retried pointlessly (distinguish permanent from temporary errors).
 
 ## Milestone 3 – Login and Angular: job overview
-- Keycloak in Docker Compose (`auth` profile, memory limit) with a realm export: demo users `operator` and `approver`, plus a client for MCP (ADR 0004).
-- Spring Security `oauth2Login` as BFF: session cookie + CSRF, roles → permissions (`jobs.read`, `jobs.retry`, `approvals.decide`). Webhooks stay open, protected by HMAC.
-- The `local-noauth` profile with a fixed dev user, plus a test that it cannot be enabled together with `prod`.
-- Tests with `spring-security-test` (no Keycloak in tests): what each role *can* and *cannot* do.
+Work in three steps (3a, 3b, 3c), one commit series each, with a green `./gradlew check` (and the frontend checks for 3c) before the next step starts. Stop for review at the end of the milestone.
+
+### 3a – Security in the backend
+- Add Spring Security. Verify the version against the current Spring Boot before adding it (ADR 0006).
+- Keycloak in Docker Compose (`auth` profile, memory limit) with `keycloak/realm-sluice.json`: demo users `operator` and `approver`, plus a client for MCP (ADR 0004). Check that compose imports the realm at startup. The realm must put `realm_access.roles` in the **ID token** (and userinfo), because `oauth2Login` reads the ID token, not the access token.
+- Spring Security `oauth2Login` as BFF: session cookie + CSRF (`CookieCsrfTokenRepository`, cookie `XSRF-TOKEN`, header `X-XSRF-TOKEN`, which Angular sends by itself on same-origin calls).
+  - `/api/**` answers **401** (not a redirect to Keycloak) when not logged in, so Angular decides what to do.
+  - `/webhooks/**` stays open and is exempt from CSRF; HMAC protects it. `/health/**` stays open.
+- Roles → permissions in a `GrantedAuthoritiesMapper`: `operator` → `jobs.read`, `jobs.retry`; `approver` → the same plus `approvals.decide`. Endpoints use `@PreAuthorize("hasAuthority(...)")`.
+- The `local-noauth` profile with a fixed dev user that has **both** roles. The app refuses to start if it is combined with `prod`, and a test checks it.
+- Swagger UI and `/v3/api-docs` are closed in the `prod` profile (`springdoc.api-docs.enabled=false`, `springdoc.swagger-ui.enabled=false`), with a test that checks it.
+- Tests with `spring-security-test` (`oidcLogin()`, no Keycloak in tests): what each role *can* and *cannot* do, 401 when logged out, 403 without the permission, and a `POST …/retry` test that proves the CSRF cookie/header pair works.
+
+### 3b – Read API and user profile
+- `GET /api/jobs?status=&q=&page=&size=` (new slice `jobs/listjobs`), newest first, using `jobs_status_created_ix`. Offset pagination with a `Page` response (items, page, size, total). `q` matches order number (via `orders.import_job_id`) and job ID; searching `last_error` is out of scope until it has an index.
+- Extend the job detail (new slice or an extended `getjob`) with the payload (order ID only, no personal data), the attempt history from `job_attempts`, and the line log from `job_line_log`. Keep the ETag: the "Run again" button needs it for `If-Match`.
+- `V4__users.sql`: `app_users` (OIDC issuer + subject, language, timestamps), created on first login. `GET /api/me` (name, permissions, language) and `PUT /api/me/language`.
+- The language choice is stored per user on the server instead of only in the browser's `localStorage`. The browser language and then `en` remain the fallback (ADR 0006, ADR 0011).
+- Regenerate the OpenAPI client; CI fails if it is out of date.
+
+### 3c – Angular
+- Auth state from `/api/me`. On 401 the app navigates the whole page to `/oauth2/authorization/keycloak`.
+- Build the shared table, status chip and error/empty states in `shared/` here, so milestones 3.5, 4 and 5 reuse them.
 - A list of jobs with filter on status, search and pagination.
 - A detail page: payload, line log, error history and a "Run again" button.
-- Display the time and number of attempts in a way the customer understands, with dates formatted per the chosen language.
-- Build the shared table, status chip and error/empty states here, so milestones 4 and 5 reuse them.
-- Swagger UI and `/v3/api-docs` are closed in the `prod` profile (`springdoc.api-docs.enabled=false`, `springdoc.swagger-ui.enabled=false`), with a test that checks it.
-- The language choice is stored per user (server-side, on the user profile) instead of only in the browser's `localStorage`. The browser language and then `en` remain the fallback (ADR 0006).
-- Material, responsive, all text through Transloco (en/nb).
+- Display the time and number of attempts in a way the customer understands (for example "Attempt 2 of 5, next attempt in 3 min"), with dates formatted per the chosen language.
+- The language switcher saves through `/api/me`.
+- Material, responsive, all text through Transloco (en/nb); the key-parity tests cover the new keys.
+
+### Notes
+- Develop with `local-noauth` and start Keycloak (8 GB RAM) only when working on login itself.
+- Decisions: ADR 0011 (language per user). List conventions (offset, `Page`) are recorded in the code and in this plan; add an ADR only if they grow.
+
+## Milestone 3.5 – Live demo
+Goal: the project itself is the demo. A visitor can try Sluice in the browser, see what happens behind the scenes, and see what an end user and an operator each see, with short explanations of the design choices. This is the public face of the project (deployed in milestone 6). It builds on the job views from milestone 3.
+
+**What the visitor sees**
+- A split screen that can also be opened as two windows:
+  - **Customer:** a small webshop. Pick products, pick a scenario, press "Buy". The customer only sees an order confirmation, like a real shop.
+  - **Behind the scenes:** a live timeline. Webhook received and HMAC checked, order and job stored in one transaction, worker claims the job, ERP call, finish. Each step has a "Why do we do it this way?" note that links to the relevant ADR.
+- A third tab, **Operations**, is the real job list and detail from milestone 3, where the visitor can press "Run again" on a failed job.
+- Guests can try everything without logging in. Logging in with Keycloak is shown as its own scenario.
+
+**Scenarios (the visitor chooses; each has a "Press here to see what happens when…" button)**
+1. Successful order: `PENDING → RUNNING → SUCCEEDED`, with the ERP order number.
+2. Duplicate webhook: the same order twice gives one job.
+3. ERP down (5xx): `FAILED`, backoff and the next attempt counting down.
+4. ERP says "wait" (429 with `Retry-After`): the wait time comes from the ERP.
+5. Invalid order (missing SKU): permanent error, `DEAD`, line log, then "Run again" after a fix.
+6. Crash in the middle of a job: the lease expires, another worker takes over, and the ERP still ends up with one order (fencing + idempotency).
+
+**How**
+- A `demo` profile/property. A built-in demo ERP behind the `ErpOrderSender` port (port/adapter in practice), with a per-session switch for how it behaves (ok, 5xx, 429 + `Retry-After`, reject). No separate ERP is needed in the cloud.
+- Demo endpoints under `/api/demo/**` that start a scenario. The **server** signs and sends the webhook through the real flow, so the visitor never needs the secret and the real code path is what is shown.
+- Time is compressed in demo mode (backoff, lease and poll interval in seconds) so waiting takes seconds, not minutes. The crash scenario simulates a worker that stops after the ERP call.
+- Live view by polling (about once a second) of the job, its attempts and the line log; server-sent events only if polling is not enough.
+- A sandbox per visitor: demo data carries a demo-session ID, is invisible to other visitors, and is cleaned up after a time limit. Rate limiting and an upper limit on demo data protect the public page.
+- The explanations are text in Transloco (en/nb) with links to `docs/adr/`.
+
+**Decisions and open items**
+- Write an ADR when this milestone starts, with the next free number: demo mode, the per-session sandbox, and guest access next to ADR 0004 (it adds to it, it does not change it).
+- Decide whether the split screen can be popped out to a second window (for example with `BroadcastChannel`) or stays one page.
+- Tests: each scenario as an integration test through the real flow; a test that one visitor cannot see another visitor's data; a test that demo endpoints do not exist without the `demo` profile.
+
+**Steps**
+
+Work in four steps, one commit series each, with all checks green before the next step starts. Stop for review at the end of the milestone.
+
+- **3.5.0 – Preparation (from the Milestone 3 review).**
+  - Upgrade Spring Boot to the latest stable (4.2.x) as its own `chore` commit, before any feature work. If it needs more than trivial fixes, stop and ask.
+  - Move the browser click-through test (Playwright) into the repository and run it in CI. The demo is an end-to-end flow, so this test is needed from here on.
+  - Make browser login work against the Docker Compose `app` profile (today Keycloak is `keycloak:8080` inside the Docker network, which a browser cannot reach). Decide how the issuer URL is configured; this must also work for the public deploy (milestone 6).
+  - Record who started a manual "Run again" (the user's identity), in the smallest way that milestone 5's audit log can absorb later. Adding a table is a critical decision: ask first.
+- **3.5a – Demo backend.** The `demo` profile, the demo ERP behind the port, the scenarios, the per-visitor sandbox, the `/api/demo/**` endpoints, compressed time, and the integration tests.
+- **3.5b – Demo frontend.** The split screen (customer and behind the scenes), the Operations tab on the milestone 3 views, scenario buttons, the live timeline, and the explanations (en/nb) linked to the ADRs.
+- **3.5c – Hardening.** Rate limiting and limits on demo data, clean-up of old demo sessions, the end-to-end test of every scenario, and the README section.
 
 ## Milestone 4 – Product data and quality
 - `products` with SKU, GTIN, attributes (JSONB) and images. Name and description are stored per locale (at least `en` and `nb`).
@@ -71,6 +136,7 @@ Architecture decisions are in `docs/adr/`. Read them before starting a milestone
 - One Docker image (ADR 0005), versioned, non-root.
 - OIDC in the cloud: a Keycloak container on Cloud Run (min-instances 0) or a managed OIDC provider. Decide and record it as a new ADR (next free number).
 - Deploy to Google Cloud Run with Cloud SQL (or Neon) for Postgres.
+- Deploy the live demo (milestone 3.5) as the public face of the project, for example on orjans.no.
 - Rate limiting for open endpoints (the webhooks) in front of the app: Cloud Armor / the load balancer. Deferred from milestone 1 (technical debt until then).
 - Circuit breaker in front of the ERP: after repeated `ErpSendResult.Unavailable`, stop calling for a while and fail fast, so a long ERP outage doesn't use up every job's attempts. Backoff, jitter and `Retry-After` dampen this today, but don't stop it. Deferred from milestone 2 (technical debt until then).
 - Clean-up of `job_attempts` (and the per-line ERP log): keep the history for a configurable period, then archive or delete it in batches, so the tables don't grow without bound. Deferred from milestone 1.

@@ -78,6 +78,13 @@ class ArchitectureTest {
         productionFiles.assertTrue { file -> file.imports.none { import -> JACKSON_2_PREFIXES.any { import.name.startsWith(it) } } }
     }
 
+    // spring-security-test's csrf() replaces the CSRF repository in the shared filter chain for every later
+    // test, which hides the real XSRF-TOKEN cookie. Tests use support.AngularCsrf instead.
+    @Test
+    fun `tests send csrf tokens like angular, not with spring-security-test's csrf()`() {
+        Konsist.scopeFromTest().files.assertTrue { file -> file.imports.none { it.name == SPRING_SECURITY_TEST_CSRF } }
+    }
+
     private fun filesIn(packagePrefix: String): List<KoFileDeclaration> =
         productionFiles.filter { it.packageName == packagePrefix || it.packageName.startsWith("$packagePrefix.") }
 
@@ -100,6 +107,8 @@ class ArchitectureTest {
         const val SHARED = "$BASE.shared"
         const val INFRASTRUCTURE = "$BASE.infrastructure"
         const val GET_OR_THROW_CALL = ".getOrThrow()"
+        const val SPRING_SECURITY_TEST_CSRF =
+            "org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf"
         val TOP_LEVEL_PACKAGES = listOf(FEATURES, WEB, SHARED, INFRASTRUCTURE)
 
         // com.fasterxml.jackson.annotation is not listed: Jackson 3 still uses those annotations.

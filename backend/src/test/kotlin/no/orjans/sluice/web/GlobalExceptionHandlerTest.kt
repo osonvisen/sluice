@@ -10,6 +10,11 @@ import no.orjans.sluice.shared.Result
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.boot.security.autoconfigure.SecurityAutoConfiguration
+import org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilterAutoConfiguration
+import org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSecurityAutoConfiguration
+import org.springframework.boot.security.oauth2.client.autoconfigure.OAuth2ClientAutoConfiguration
+import org.springframework.boot.security.oauth2.client.autoconfigure.servlet.OAuth2ClientWebSecurityAutoConfiguration
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
 import org.springframework.context.annotation.Import
 import org.springframework.http.HttpHeaders
@@ -22,7 +27,19 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RestController
 
-@WebMvcTest(GlobalExceptionHandlerTest.TestEndpoints::class)
+// Only the error handling is under test. The slice would otherwise add Spring Boot's default security
+// (every request needs a login) and the OIDC client, which fetches Keycloak's discovery document at startup.
+// Security errors (401, 403, CSRF) are tested against the real filter chain in SecurityIT.
+@WebMvcTest(
+    GlobalExceptionHandlerTest.TestEndpoints::class,
+    excludeAutoConfiguration = [
+        SecurityAutoConfiguration::class,
+        ServletWebSecurityAutoConfiguration::class,
+        SecurityFilterAutoConfiguration::class,
+        OAuth2ClientAutoConfiguration::class,
+        OAuth2ClientWebSecurityAutoConfiguration::class,
+    ],
+)
 @Import(ProblemDetailFactory::class, LocaleConfig::class, CorrelationIdFilter::class, GlobalExceptionHandlerTest.TestEndpoints::class)
 class GlobalExceptionHandlerTest {
     @Autowired

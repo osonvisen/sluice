@@ -2,16 +2,137 @@
   "app": {
     "title": "Sluice",
     "skipToContent": "Hopp til hovedinnhold",
+    "navigation": "Hovedmeny",
     "version": "Versjon {{version}}",
     "versionUnavailable": "Versjonen er ikke tilgjengelig"
+  },
+  "nav": {
+    "jobs": "Jobber"
+  },
+  "auth": {
+    "logout": "Logg ut",
+    "loginFailed": {
+      "title": "Innloggingen mislyktes",
+      "detail": "Du ble sendt tilbake fra innloggingssiden uten å være logget inn. Sjekk at informasjonskapsler er tillatt for dette nettstedet, og prøv igjen."
+    }
   },
   "language": {
     "label": "Språk",
     "en": "English",
-    "nb": "Norsk bokmål"
+    "nb": "Norsk bokmål",
+    "saveFailed": "Språket kunne ikke lagres. Det gjelder bare i denne nettleseren."
   },
   "home": {
+    "title": "Hjem",
     "heading": "Velkommen til Sluice",
-    "intro": "Sluice flytter ordrer og produktdata mellom nettbutikken, lageret og ERP-systemet. Joboversikt, produkter og godkjenninger kommer snart."
+    "intro": "Sluice flytter ordrer og produktdata mellom nettbutikken, lageret og ERP-systemet.",
+    "openJobs": "Åpne joboversikten",
+    "noAccess": "Du er logget inn, men brukeren din har ikke tilgang til noe her ennå. Be en administrator om rollen operator eller approver."
+  },
+  "table": {
+    "loading": "Laster …",
+    "itemsPerPage": "Rader per side",
+    "nextPage": "Neste side",
+    "previousPage": "Forrige side",
+    "firstPage": "Første side",
+    "lastPage": "Siste side",
+    "range": "{{from}}–{{to}} av {{total}}",
+    "rangeEmpty": "0 av 0"
+  },
+  "errors": {
+    "generic": {
+      "title": "Noe gikk galt",
+      "detail": "Prøv igjen. Kontakt support hvis det skjer flere ganger."
+    },
+    "network": {
+      "title": "Får ikke kontakt med Sluice",
+      "detail": "Sjekk nettforbindelsen, eller prøv igjen om litt."
+    },
+    "reference": "Referanse til support: {{id}}",
+    "retry": "Prøv igjen",
+    "dismiss": "Lukk"
+  },
+  "jobs": {
+    "list": {
+      "heading": "Jobber",
+      "statusFilter": "Status",
+      "allStatuses": "Alle statuser",
+      "search": "Ordrenummer eller jobb-ID",
+      "searchHint": "For eksempel 1042 eller #1042",
+      "searchButton": "Søk",
+      "empty": "Det finnes ingen jobber ennå.",
+      "noMatches": "Ingen jobber passer filteret.",
+      "orderLink": "Ordre {{orderNumber}}"
+    },
+    "detail": {
+      "title": "Jobb",
+      "back": "← Alle jobber",
+      "summary": "Sammendrag",
+      "payload": "Hva jobben jobber med",
+      "attempts": "Forsøk",
+      "noAttempts": "Jobben har ikke kjørt ennå.",
+      "lines": "Ordrelinjer sendt til ERP",
+      "noLines": "Ingen ordrelinjer er logget for denne jobben.",
+      "runAgain": "Kjør på nytt",
+      "runAgainDone": "Jobben kjøres på nytt om litt."
+    },
+    "fields": {
+      "status": "Status",
+      "job": "Jobb",
+      "progress": "Fremdrift",
+      "lastError": "Siste feil",
+      "created": "Opprettet",
+      "updated": "Oppdatert",
+      "type": "Type",
+      "id": "Jobb-ID",
+      "deadReason": "Stoppet fordi",
+      "nextRun": "Neste kjøring",
+      "run": "Kjøring",
+      "attempt": "Forsøk",
+      "started": "Startet",
+      "finished": "Ferdig",
+      "outcome": "Resultat",
+      "error": "Feil",
+      "line": "Linje",
+      "sent": "Sendt",
+      "received": "Mottatt"
+    },
+    "status": {
+      "PENDING": "Venter",
+      "RUNNING": "Kjører",
+      "SUCCEEDED": "Fullført",
+      "FAILED": "Feilet, prøver igjen",
+      "DEAD": "Stoppet"
+    },
+    "deadReason": {
+      "PERMANENT": "Feilen kan ikke rettes ved å prøve igjen",
+      "EXHAUSTED": "Alle forsøk er brukt opp"
+    },
+    "type": {
+      "order.import": "Ordreimport"
+    },
+    "attempts": {
+      "queued": "Venter på en worker",
+      "scheduled": "Første forsøk {{when}}",
+      "running": "Forsøk {{attempt}} av {{max}} kjører",
+      "retrying": "Forsøk {{attempt}} av {{max}} feilet – neste forsøk {{when}}",
+      "retryingNow": "Forsøk {{attempt}} av {{max}} feilet – neste forsøk straks",
+      "succeeded": "Fullført på forsøk {{attempt}} av {{max}}",
+      "deadPermanent": "Stoppet etter forsøk {{attempt}}: å prøve igjen ville ikke hjelpe",
+      "deadExhausted": "Ga opp etter {{attempt}} av {{max}} forsøk"
+    },
+    "attemptOutcome": {
+      "SUCCEEDED": "Fullført",
+      "TEMPORARY_FAILURE": "Midlertidig feil",
+      "PERMANENT_FAILURE": "Varig feil",
+      "LEASE_EXPIRED": "Workeren stoppet"
+    },
+    "lineOutcome": {
+      "ACCEPTED": "Godtatt",
+      "REJECTED": "Avvist",
+      "ORDER_REJECTED": "Ordren avvist",
+      "INVALID": "Ikke sendt: ugyldig",
+      "NO_RESPONSE": "Fikk ikke svar"
+    }
   }
 }

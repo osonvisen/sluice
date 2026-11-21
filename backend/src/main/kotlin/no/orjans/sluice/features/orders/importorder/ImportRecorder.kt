@@ -2,6 +2,7 @@ package no.orjans.sluice.features.orders.importorder
 
 import no.orjans.sluice.features.jobs.JobContext
 import no.orjans.sluice.features.orders.ErpOrderLine
+import no.orjans.sluice.features.orders.LineOutcome
 import no.orjans.sluice.features.orders.OrderId
 import no.orjans.sluice.features.orders.OrderStatus
 import no.orjans.sluice.shared.atUtc
@@ -9,9 +10,6 @@ import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.stereotype.Component
 import tools.jackson.databind.json.JsonMapper
 import java.time.Clock
-
-/** How one order line fared in one attempt. Stored as text; the database has a matching check constraint. */
-enum class LineOutcome { ACCEPTED, REJECTED, ORDER_REJECTED, INVALID, NO_RESPONSE }
 
 data class LineLogEntry(
     val lineNumber: Int,

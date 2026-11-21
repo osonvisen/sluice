@@ -10,6 +10,28 @@
     "description" : "Same origin as the web app (ADR 0005)"
   } ],
   "paths" : {
+    "/api/me/language" : {
+      "put" : {
+        "tags" : [ "Me" ],
+        "operationId" : "changeLanguage",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ChangeLanguageRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : { }
+          }
+        }
+      }
+    },
     "/api/jobs/{id}/retry" : {
       "post" : {
         "tags" : [ "Jobs" ],
@@ -36,6 +58,77 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/RetryJobResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me" : {
+      "get" : {
+        "tags" : [ "Me" ],
+        "operationId" : "getMe",
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs" : {
+      "get" : {
+        "tags" : [ "Jobs" ],
+        "operationId" : "listJobs",
+        "parameters" : [ {
+          "name" : "status",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "$ref" : "#/components/schemas/JobStatus"
+          }
+        }, {
+          "name" : "q",
+          "in" : "query",
+          "description" : "Order number (with or without #) or job ID, exact match",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "page",
+          "in" : "query",
+          "description" : "0-based page number",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 0
+          }
+        }, {
+          "name" : "size",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 20
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageJobListItem"
                 }
               }
             }
@@ -90,6 +183,20 @@
   },
   "components" : {
     "schemas" : {
+      "ChangeLanguageRequest" : {
+        "type" : "object",
+        "properties" : {
+          "language" : {
+            "type" : "string",
+            "minLength" : 1
+          }
+        },
+        "required" : [ "language" ]
+      },
+      "JobStatus" : {
+        "type" : "string",
+        "enum" : [ "PENDING", "RUNNING", "SUCCEEDED", "FAILED", "DEAD" ]
+      },
       "RetryJobResponse" : {
         "type" : "object",
         "properties" : {
@@ -97,8 +204,7 @@
             "type" : "string"
           },
           "status" : {
-            "type" : "string",
-            "enum" : [ "PENDING", "RUNNING", "SUCCEEDED", "FAILED", "DEAD" ]
+            "$ref" : "#/components/schemas/JobStatus"
           },
           "attempts" : {
             "type" : "integer",
@@ -111,7 +217,29 @@
         },
         "required" : [ "attempts", "id", "nextRunAt", "status" ]
       },
-      "GetJobResponse" : {
+      "MeResponse" : {
+        "type" : "object",
+        "properties" : {
+          "name" : {
+            "type" : "string"
+          },
+          "permissions" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "language" : {
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "name", "permissions" ]
+      },
+      "DeadReason" : {
+        "type" : "string",
+        "enum" : [ "PERMANENT", "EXHAUSTED" ]
+      },
+      "JobListItem" : {
         "type" : "object",
         "properties" : {
           "id" : {
@@ -121,12 +249,14 @@
             "type" : "string"
           },
           "status" : {
-            "type" : "string",
-            "enum" : [ "PENDING", "RUNNING", "SUCCEEDED", "FAILED", "DEAD" ]
+            "$ref" : "#/components/schemas/JobStatus"
           },
           "deadReason" : {
-            "type" : [ "string", "null" ],
-            "enum" : [ "PERMANENT", "EXHAUSTED" ]
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/DeadReason"
+            }, {
+              "type" : "null"
+            } ]
           },
           "attempts" : {
             "type" : "integer",
@@ -143,6 +273,9 @@
           "lastError" : {
             "type" : [ "string", "null" ]
           },
+          "orderNumber" : {
+            "type" : [ "string", "null" ]
+          },
           "createdAt" : {
             "type" : "string",
             "format" : "date-time"
@@ -153,6 +286,173 @@
           }
         },
         "required" : [ "attempts", "createdAt", "id", "maxAttempts", "nextRunAt", "status", "type", "updatedAt" ]
+      },
+      "PageJobListItem" : {
+        "type" : "object",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/JobListItem"
+            }
+          },
+          "page" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "size" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "total" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        },
+        "required" : [ "items", "page", "size", "total" ]
+      },
+      "AttemptOutcome" : {
+        "type" : "string",
+        "enum" : [ "SUCCEEDED", "TEMPORARY_FAILURE", "PERMANENT_FAILURE", "LEASE_EXPIRED" ]
+      },
+      "GetJobResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string"
+          },
+          "status" : {
+            "$ref" : "#/components/schemas/JobStatus"
+          },
+          "deadReason" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/DeadReason"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "attempts" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "maxAttempts" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "nextRunAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "lastError" : {
+            "type" : [ "string", "null" ]
+          },
+          "orderNumber" : {
+            "type" : [ "string", "null" ]
+          },
+          "payload" : {
+            "type" : "object",
+            "additionalProperties" : { }
+          },
+          "createdAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "updatedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "attemptHistory" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/JobAttemptResponse"
+            }
+          },
+          "lineLog" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/JobLineLogEntry"
+            }
+          }
+        },
+        "required" : [ "attemptHistory", "attempts", "createdAt", "id", "lineLog", "maxAttempts", "nextRunAt", "payload", "status", "type", "updatedAt" ]
+      },
+      "JobAttemptResponse" : {
+        "type" : "object",
+        "properties" : {
+          "run" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "attempt" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "startedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "finishedAt" : {
+            "type" : [ "string", "null" ],
+            "format" : "date-time"
+          },
+          "outcome" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/AttemptOutcome"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "error" : {
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "attempt", "run", "startedAt" ]
+      },
+      "JobLineLogEntry" : {
+        "type" : "object",
+        "properties" : {
+          "run" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "attempt" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "lineNumber" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "outcome" : {
+            "$ref" : "#/components/schemas/LineOutcome"
+          },
+          "sent" : {
+            "type" : [ "object", "null" ],
+            "additionalProperties" : { }
+          },
+          "received" : {
+            "type" : [ "object", "null" ],
+            "additionalProperties" : { }
+          },
+          "errorCode" : {
+            "type" : [ "string", "null" ]
+          },
+          "errorMessage" : {
+            "type" : [ "string", "null" ]
+          },
+          "loggedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        },
+        "required" : [ "attempt", "lineNumber", "loggedAt", "outcome", "run" ]
+      },
+      "LineOutcome" : {
+        "type" : "string",
+        "enum" : [ "ACCEPTED", "REJECTED", "ORDER_REJECTED", "INVALID", "NO_RESPONSE" ]
       },
       "AppInfoResponse" : {
         "type" : "object",

@@ -4,6 +4,12 @@
 spring:
   main:
     web-application-type: none
+  # No web server and no login: skip the OIDC client, so the migrate step neither needs the identity
+  # provider to be up nor its client secret.
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.security.oauth2.client.autoconfigure.OAuth2ClientAutoConfiguration
+      - org.springframework.boot.security.oauth2.client.autoconfigure.servlet.OAuth2ClientWebSecurityAutoConfiguration
 sluice:
   database:
     migrate-on-startup: true

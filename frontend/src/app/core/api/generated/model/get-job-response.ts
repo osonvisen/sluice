@@ -7,31 +7,28 @@
  * https://openapi-generator.tech
  * Do not edit the class manually.
  */
+import { JobStatus } from './job-status';
+import { DeadReason } from './dead-reason';
+import { JobLineLogEntry } from './job-line-log-entry';
+import { JobAttemptResponse } from './job-attempt-response';
 
 
 export interface GetJobResponse { 
     id: string;
     type: string;
-    status: GetJobResponseStatusEnum;
-    deadReason?: GetJobResponseDeadReasonEnum | null;
+    status: JobStatus;
+    deadReason?: DeadReason | null;
     attempts: number;
     maxAttempts: number;
     nextRunAt: string;
     lastError?: string | null;
+    orderNumber?: string | null;
+    payload: { [key: string]: any | null; };
     createdAt: string;
     updatedAt: string;
+    attemptHistory: Array<JobAttemptResponse>;
+    lineLog: Array<JobLineLogEntry>;
 }
-export enum GetJobResponseStatusEnum {
-    Pending = 'PENDING',
-    Running = 'RUNNING',
-    Succeeded = 'SUCCEEDED',
-    Failed = 'FAILED',
-    Dead = 'DEAD'
-};
-export enum GetJobResponseDeadReasonEnum {
-    Permanent = 'PERMANENT',
-    Exhausted = 'EXHAUSTED'
-};
 
 
 

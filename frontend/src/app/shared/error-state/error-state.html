@@ -1,0 +1,22 @@
+<div class="error" role="alert" *transloco="let t">
+  <h2 class="title">
+    {{
+      problem().title ??
+        (problem().status === networkError ? t('errors.network.title') : t('errors.generic.title'))
+    }}
+  </h2>
+  <p class="detail">
+    {{
+      problem().detail ??
+        (problem().status === networkError
+          ? t('errors.network.detail')
+          : t('errors.generic.detail'))
+    }}
+  </p>
+  @if (problem().correlationId; as id) {
+    <p class="reference">{{ t('errors.reference', { id }) }}</p>
+  }
+  @if (retryable()) {
+    <button mat-stroked-button type="button" (click)="retry.emit()">{{ t('errors.retry') }}</button>
+  }
+</div>

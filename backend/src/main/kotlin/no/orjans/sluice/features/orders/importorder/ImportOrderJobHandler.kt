@@ -9,6 +9,7 @@ import no.orjans.sluice.features.orders.ErpOrder
 import no.orjans.sluice.features.orders.ErpOrderSender
 import no.orjans.sluice.features.orders.ErpSendResult
 import no.orjans.sluice.features.orders.ImportOrderPayload
+import no.orjans.sluice.features.orders.LineOutcome
 import no.orjans.sluice.features.orders.OrderId
 import no.orjans.sluice.features.orders.OrderImport
 import no.orjans.sluice.features.orders.OrderStatus

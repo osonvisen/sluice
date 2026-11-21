@@ -3,6 +3,13 @@
 
   <mat-toolbar class="toolbar">
     <a class="brand" routerLink="/">{{ t('app.title') }}</a>
+    @if (canReadJobs()) {
+      <nav [attr.aria-label]="t('app.navigation')">
+        <a mat-button routerLink="/jobs" routerLinkActive="active" ariaCurrentWhenActive="page">{{
+          t('nav.jobs')
+        }}</a>
+      </nav>
+    }
     <span class="spacer"></span>
     <mat-form-field class="language" subscriptSizing="dynamic" appearance="outline">
       <mat-label>{{ t('language.label') }}</mat-label>
@@ -18,10 +25,35 @@
         }
       </mat-select>
     </mat-form-field>
+    @if (auth.me(); as me) {
+      <span class="user" data-testid="user-name">{{ me.name }}</span>
+      <button mat-stroked-button type="button" (click)="logout()">{{ t('auth.logout') }}</button>
+    }
   </mat-toolbar>
 
+  @if (languageSaveFailed()) {
+    <p class="notice" role="status">{{ t('language.saveFailed') }}</p>
+  }
+
   <main id="main" class="content" tabindex="-1">
-    <router-outlet />
+    @switch (auth.status()) {
+      @case ('loginFailed') {
+        <app-error-state
+          [problem]="{
+            status: 401,
+            title: t('auth.loginFailed.title'),
+            detail: t('auth.loginFailed.detail'),
+          }"
+          (retry)="reload()"
+        />
+      }
+      @case ('unavailable') {
+        <app-error-state [problem]="{ status: 0 }" (retry)="reload()" />
+      }
+      @default {
+        <router-outlet />
+      }
+    }
   </main>
 
   <footer class="footer">

@@ -19,9 +19,33 @@ spring:
   threads:
     virtual:
       enabled: true
+  # Login with Keycloak, Spring Boot as BFF (ADR 0004). Only a standard OIDC issuer is configured, so the
+  # provider can be swapped by configuration. Boot reads the issuer's discovery document at startup:
+  # without the `local-noauth` profile, the identity provider must be up before the app starts.
+  security:
+    oauth2:
+      client:
+        registration:
+          keycloak:
+            client-id: ${SLUICE_OIDC_CLIENT_ID:sluice-web}
+            # Required (checked at startup): the confidential client's secret. keycloak/realm-sluice.json has the dev one.
+            client-secret: ${SLUICE_OIDC_CLIENT_SECRET:}
+            scope: openid,profile
+        provider:
+          keycloak:
+            issuer-uri: ${SLUICE_OIDC_ISSUER_URI:http://localhost:8081/realms/sluice}
+            user-name-attribute: preferred_username
 
 server:
   shutdown: graceful
+  servlet:
+    session:
+      # The BFF session: the browser only holds this cookie, never a token (ADR 0004).
+      # Lax, not Strict: the redirect back from the identity provider must carry it.
+      cookie:
+        http-only: true
+        same-site: lax
+      timeout: 30m
   error:
     include-stacktrace: never
     include-message: never
@@ -74,6 +98,9 @@ springdoc:
   paths-to-match: /api/**
   swagger-ui:
     path: /swagger-ui.html
+    # "Try it out" on POST needs the CSRF token: Swagger UI sends the XSRF-TOKEN cookie as X-XSRF-TOKEN.
+    csrf:
+      enabled: true
 
 logging:
   pattern:

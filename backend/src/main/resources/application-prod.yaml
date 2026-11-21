@@ -4,3 +4,21 @@ logging:
     # JSON log lines (Elastic Common Schema). MDC values such as correlationId are included.
     format:
       console: ecs
+
+# The API description is a map for attackers and has no users in production (PLAN.md, milestone 3).
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+server:
+  # Production runs behind a TLS-terminating proxy (Cloud Run, milestone 6). Trust its X-Forwarded-* headers,
+  # so URLs built from the request ({baseUrl} in the login and logout redirects) are https and the public
+  # host, and the XSRF-TOKEN cookie gets Secure (it follows request.isSecure).
+  forward-headers-strategy: framework
+  servlet:
+    session:
+      cookie:
+        # Production is served over HTTPS only.
+        secure: true

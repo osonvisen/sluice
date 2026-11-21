@@ -1,11 +1,13 @@
 package no.orjans.sluice.features.jobs
 
 import no.orjans.sluice.features.jobs.worker.JobWorker
+import no.orjans.sluice.support.AngularCsrf
 import no.orjans.sluice.support.DatabaseCleaner
 import no.orjans.sluice.support.IntegrationTest
 import no.orjans.sluice.support.MutableClock
 import no.orjans.sluice.support.ScriptedJobHandler
-import no.orjans.sluice.support.ScriptedPayload
+import no.orjans.sluice.support.TestJobs
+import no.orjans.sluice.support.TestUsers
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -13,7 +15,6 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.test.web.servlet.assertj.MockMvcTester
-import org.springframework.transaction.support.TransactionTemplate
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
@@ -28,16 +29,13 @@ class JobsApiIT {
     lateinit var worker: JobWorker
 
     @Autowired
-    lateinit var queue: JobQueue
+    lateinit var jobs: TestJobs
 
     @Autowired
     lateinit var handler: ScriptedJobHandler
 
     @Autowired
     lateinit var clock: MutableClock
-
-    @Autowired
-    lateinit var transactions: TransactionTemplate
 
     @Autowired
     lateinit var cleaner: DatabaseCleaner
@@ -53,7 +51,7 @@ class JobsApiIT {
     fun `get returns the job with its version as etag and times in utc`() {
         val id = enqueue("get")
 
-        val result = mvc.get().uri("/api/jobs/$id")
+        val result = get("/api/jobs/$id")
 
         assertThat(result).hasStatusOk().hasHeader(HttpHeaders.ETAG, "\"0\"")
         val body = assertThat(result).bodyJson()
@@ -63,8 +61,8 @@ class JobsApiIT {
 
     @Test
     fun `get of an unknown job is 404, of a malformed id 400`() {
-        assertThat(mvc.get().uri("/api/jobs/${UUID.randomUUID()}")).hasStatus(HttpStatus.NOT_FOUND)
-        assertThat(mvc.get().uri("/api/jobs/not-a-uuid"))
+        assertThat(get("/api/jobs/${UUID.randomUUID()}")).hasStatus(HttpStatus.NOT_FOUND)
+        assertThat(get("/api/jobs/not-a-uuid"))
             .hasStatus(HttpStatus.BAD_REQUEST)
             .bodyJson()
             .extractingPath("$.violations[0].code")
@@ -76,28 +74,23 @@ class JobsApiIT {
         val id = deadJob("dead")
         val etag = etagOf(id)
 
-        val result =
-            mvc
-                .post()
-                .uri("/api/jobs/$id/retry")
-                .header(HttpHeaders.IF_MATCH, etag)
-                .exchange()
+        val result = post("/api/jobs/$id/retry").header(HttpHeaders.IF_MATCH, etag).exchange()
 
         assertThat(result).hasStatusOk()
         assertThat(result).bodyJson().extractingPath("$.status").isEqualTo("PENDING")
         assertThat(result).bodyJson().extractingPath("$.attempts").isEqualTo(0)
         assertThat(result.response.getHeader(HttpHeaders.ETAG)).isNotEqualTo(etag)
-        assertThat(mvc.get().uri("/api/jobs/$id")).bodyJson().extractingPath("$.deadReason").isNull()
+        assertThat(get("/api/jobs/$id")).bodyJson().extractingPath("$.deadReason").isNull()
 
         worker.runOnce()
-        assertThat(mvc.get().uri("/api/jobs/$id")).bodyJson().extractingPath("$.status").isEqualTo("SUCCEEDED")
+        assertThat(get("/api/jobs/$id")).bodyJson().extractingPath("$.status").isEqualTo("SUCCEEDED")
     }
 
     @Test
     fun `retry without if-match is 428`() {
         val id = deadJob("no-if-match")
 
-        assertThat(mvc.post().uri("/api/jobs/$id/retry"))
+        assertThat(post("/api/jobs/$id/retry"))
             .hasStatus(HttpStatus.PRECONDITION_REQUIRED)
             .bodyJson()
             .extractingPath("$.code")
@@ -109,12 +102,12 @@ class JobsApiIT {
         val id = deadJob("stale")
         val staleEtag = "\"0\""
 
-        assertThat(mvc.post().uri("/api/jobs/$id/retry").header(HttpHeaders.IF_MATCH, staleEtag))
+        assertThat(post("/api/jobs/$id/retry").header(HttpHeaders.IF_MATCH, staleEtag))
             .hasStatus(HttpStatus.PRECONDITION_FAILED)
             .bodyJson()
             .extractingPath("$.code")
             .isEqualTo("precondition-failed")
-        assertThat(mvc.get().uri("/api/jobs/$id")).bodyJson().extractingPath("$.status").isEqualTo("DEAD")
+        assertThat(get("/api/jobs/$id")).bodyJson().extractingPath("$.status").isEqualTo("DEAD")
     }
 
     @Test
@@ -122,7 +115,7 @@ class JobsApiIT {
         val id = enqueue("succeeded")
         worker.runOnce()
 
-        assertThat(mvc.post().uri("/api/jobs/$id/retry").header(HttpHeaders.IF_MATCH, etagOf(id)))
+        assertThat(post("/api/jobs/$id/retry").header(HttpHeaders.IF_MATCH, etagOf(id)))
             .hasStatus(HttpStatus.CONFLICT)
             .bodyJson()
             .extractingPath("$.code")
@@ -131,7 +124,7 @@ class JobsApiIT {
 
     @Test
     fun `retry of an unknown job is 404`() {
-        assertThat(mvc.post().uri("/api/jobs/${UUID.randomUUID()}/retry").header(HttpHeaders.IF_MATCH, "\"0\""))
+        assertThat(post("/api/jobs/${UUID.randomUUID()}/retry").header(HttpHeaders.IF_MATCH, "\"0\""))
             .hasStatus(HttpStatus.NOT_FOUND)
     }
 
@@ -146,9 +139,7 @@ class JobsApiIT {
             (1..clients).map {
                 pool.submit<Int> {
                     start.await()
-                    mvc
-                        .post()
-                        .uri("/api/jobs/$id/retry")
+                    post("/api/jobs/$id/retry")
                         .header(HttpHeaders.IF_MATCH, etag)
                         .exchange()
                         .response.status
@@ -162,23 +153,19 @@ class JobsApiIT {
         assertThat(results.filter { it != HttpStatus.OK.value() }).containsOnly(HttpStatus.PRECONDITION_FAILED.value())
     }
 
-    private fun enqueue(key: String): JobId =
-        transactions.execute { queue.enqueue(ScriptedJobHandler.TYPE, ScriptedPayload(key), IdempotencyKey(key)) }.jobId
+    private fun enqueue(key: String): JobId = jobs.pending(key)
 
-    private fun deadJob(key: String): JobId {
-        handler.script(key, { JobOutcome.PermanentFailure("bad data") })
-        val id = enqueue(key)
-        worker.runOnce()
-        return id
-    }
+    private fun deadJob(key: String): JobId = jobs.dead(key)
 
-    private fun etagOf(id: JobId): String =
-        checkNotNull(
-            mvc
-                .get()
-                .uri("/api/jobs/$id")
-                .exchange()
-                .response
-                .getHeader(HttpHeaders.ETAG),
-        )
+    private fun etagOf(id: JobId): String = checkNotNull(get("/api/jobs/$id").exchange().response.getHeader(HttpHeaders.ETAG))
+
+    // What each role may do is covered by SecurityIT; here the operator is just someone who may read and retry.
+    private fun get(path: String) = mvc.get().uri(path).with(TestUsers.operator())
+
+    private fun post(path: String) =
+        mvc
+            .post()
+            .uri(path)
+            .with(TestUsers.operator())
+            .with(AngularCsrf.token())
 }

@@ -15,9 +15,15 @@ object ShopifyWebhooks {
 
     val sampleOrder: ByteArray = checkNotNull(javaClass.getResource("/shopify/orders-create.json")).readBytes()
 
-    /** The sample order with another Shopify order ID, for tests that need several distinct orders. */
-    fun sampleOrder(shopifyOrderId: Long): ByteArray =
-        String(sampleOrder).replaceFirst("\"id\": 5847329874321", "\"id\": $shopifyOrderId").toByteArray()
+    /** The sample order with another Shopify order ID (and order number), for tests that need several distinct orders. */
+    fun sampleOrder(
+        shopifyOrderId: Long,
+        orderNumber: String = "#1042",
+    ): ByteArray =
+        String(sampleOrder)
+            .replaceFirst("\"id\": 5847329874321", "\"id\": $shopifyOrderId")
+            .replaceFirst("\"name\": \"#1042\"", "\"name\": \"$orderNumber\"")
+            .toByteArray()
 
     fun sign(
         body: ByteArray,

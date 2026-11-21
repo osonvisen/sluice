@@ -7,21 +7,15 @@
  * https://openapi-generator.tech
  * Do not edit the class manually.
  */
+import { JobStatus } from './job-status';
 
 
 export interface RetryJobResponse { 
     id: string;
-    status: RetryJobResponseStatusEnum;
+    status: JobStatus;
     attempts: number;
     nextRunAt: string;
 }
-export enum RetryJobResponseStatusEnum {
-    Pending = 'PENDING',
-    Running = 'RUNNING',
-    Succeeded = 'SUCCEEDED',
-    Failed = 'FAILED',
-    Dead = 'DEAD'
-};
 
 
 

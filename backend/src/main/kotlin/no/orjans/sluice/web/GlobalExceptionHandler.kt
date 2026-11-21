@@ -9,6 +9,9 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.HttpStatusCode
 import org.springframework.http.ProblemDetail
 import org.springframework.http.ResponseEntity
+import org.springframework.security.access.AccessDeniedException
+import org.springframework.security.core.AuthenticationException
+import org.springframework.security.web.csrf.CsrfException
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
@@ -20,6 +23,8 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
  *
  * Expected errors from endpoints arrive as [AppErrorException] (see `getOrThrow`).
  * Spring MVC's own exceptions (404, 405, 415, ...) get a code derived from their status.
+ * 401 and 403 come from Spring Security, both from its filters (via `ProblemDetailSecurityErrors`)
+ * and from `@PreAuthorize` on endpoints.
  * Rejected requests are logged at WARN, unexpected errors at ERROR (security-and-ops standard).
  * Anything unexpected becomes a 500 without internal details; the stack trace is only logged,
  * together with the correlation ID that is also returned to the client.
@@ -36,6 +41,14 @@ class GlobalExceptionHandler(
         log.warn("Request rejected: status={} code={}", problem.status, ex.error.code)
         return ResponseEntity.status(problem.status).body(problem)
     }
+
+    @ExceptionHandler(AuthenticationException::class)
+    fun handleUnauthenticated(): ResponseEntity<ProblemDetail> = rejected(HttpStatus.UNAUTHORIZED, UNAUTHORIZED)
+
+    /** A missing or stale CSRF token has its own code: reloading fixes it, unlike a missing permission. */
+    @ExceptionHandler(AccessDeniedException::class)
+    fun handleAccessDenied(ex: AccessDeniedException): ResponseEntity<ProblemDetail> =
+        rejected(HttpStatus.FORBIDDEN, if (ex is CsrfException) CSRF_TOKEN_INVALID else FORBIDDEN)
 
     @ExceptionHandler(Exception::class)
     fun handleUnexpected(ex: Exception): ResponseEntity<ProblemDetail> {
@@ -71,6 +84,14 @@ class GlobalExceptionHandler(
         return super.handleExceptionInternal(ex, problem, headers, statusCode, request)
     }
 
+    private fun rejected(
+        status: HttpStatus,
+        code: ErrorCode,
+    ): ResponseEntity<ProblemDetail> {
+        log.warn("Request rejected: status={} code={}", status.value(), code)
+        return ResponseEntity.status(status).body(problems.create(status, code))
+    }
+
     private fun codeFor(status: HttpStatusCode): ErrorCode {
         val name = HttpStatus.resolve(status.value())?.name ?: return ErrorCode("http-${status.value()}")
         return ErrorCode(name.lowercase().replace('_', '-'))
@@ -84,6 +105,9 @@ class GlobalExceptionHandler(
 
     private companion object {
         val INVALID = ErrorCode("invalid")
+        val UNAUTHORIZED = ErrorCode("unauthorized")
+        val FORBIDDEN = ErrorCode("forbidden")
+        val CSRF_TOKEN_INVALID = ErrorCode("csrf-token-invalid")
         val CAMEL_CASE_BOUNDARY = Regex("([a-z0-9])([A-Z])")
     }
 }

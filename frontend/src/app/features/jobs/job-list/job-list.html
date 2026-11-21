@@ -1,0 +1,90 @@
+<ng-container *transloco="let t">
+  <h1>{{ t('jobs.list.heading') }}</h1>
+
+  <div class="filters">
+    <mat-form-field appearance="outline" subscriptSizing="dynamic">
+      <mat-label>{{ t('jobs.list.statusFilter') }}</mat-label>
+      <mat-select [value]="filter().status" (valueChange)="filterByStatus($event)">
+        <mat-option [value]="undefined">{{ t('jobs.list.allStatuses') }}</mat-option>
+        @for (status of statuses; track status) {
+          <mat-option [value]="status">{{ t('jobs.status.' + status) }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <form
+      class="search"
+      role="search"
+      (submit)="$event.preventDefault(); search(searchInput.value)"
+    >
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ t('jobs.list.search') }}</mat-label>
+        <input
+          matInput
+          #searchInput
+          type="search"
+          maxlength="100"
+          [value]="filter().q ?? ''"
+          [attr.aria-describedby]="'search-hint'"
+        />
+        <mat-hint id="search-hint">{{ t('jobs.list.searchHint') }}</mat-hint>
+      </mat-form-field>
+      <button mat-flat-button type="submit">{{ t('jobs.list.searchButton') }}</button>
+    </form>
+  </div>
+
+  <app-data-table
+    [caption]="t('jobs.list.heading')"
+    [rows]="jobs.value()?.items ?? []"
+    [columns]="columns()"
+    [total]="jobs.value()?.total ?? 0"
+    [pageIndex]="filter().page"
+    [pageSize]="filter().size"
+    [pageSizeOptions]="pageSizes"
+    [loading]="jobs.isLoading()"
+    [error]="problem()"
+    [emptyMessage]="filter().status || filter().q ? t('jobs.list.noMatches') : t('jobs.list.empty')"
+    (page)="changePage($event)"
+    (retry)="jobs.reload()"
+  >
+    <ng-container matColumnDef="status">
+      <th mat-header-cell *matHeaderCellDef>{{ t('jobs.fields.status') }}</th>
+      <td mat-cell *matCellDef="let job">
+        <app-status-chip [label]="t('jobs.status.' + job.status)" [tone]="statusTone(job.status)" />
+      </td>
+    </ng-container>
+
+    <ng-container matColumnDef="job">
+      <th mat-header-cell *matHeaderCellDef>{{ t('jobs.fields.job') }}</th>
+      <td mat-cell *matCellDef="let job">
+        <a [routerLink]="[job.id]">{{
+          job.orderNumber
+            ? t('jobs.list.orderLink', { orderNumber: job.orderNumber })
+            : t('jobs.type.' + job.type)
+        }}</a>
+      </td>
+    </ng-container>
+
+    <ng-container matColumnDef="progress">
+      <th mat-header-cell *matHeaderCellDef>{{ t('jobs.fields.progress') }}</th>
+      <td mat-cell *matCellDef="let job">
+        @let text = progress(job);
+        {{ t(text.key, text.params) }}
+      </td>
+    </ng-container>
+
+    <ng-container matColumnDef="lastError">
+      <th mat-header-cell *matHeaderCellDef>{{ t('jobs.fields.lastError') }}</th>
+      <td mat-cell *matCellDef="let job" class="last-error" [title]="job.lastError ?? ''">
+        {{ job.lastError }}
+      </td>
+    </ng-container>
+
+    <ng-container matColumnDef="created">
+      <th mat-header-cell *matHeaderCellDef>{{ t('jobs.fields.created') }}</th>
+      <td mat-cell *matCellDef="let job" class="nowrap">
+        {{ job.createdAt | dateTime: language() }}
+      </td>
+    </ng-container>
+  </app-data-table>
+</ng-container>

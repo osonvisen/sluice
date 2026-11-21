@@ -1,5 +1,6 @@
 package no.orjans.sluice.features.jobs.worker
 
+import no.orjans.sluice.features.jobs.AttemptOutcome
 import no.orjans.sluice.features.jobs.DeadReason
 import no.orjans.sluice.features.jobs.JobId
 import no.orjans.sluice.features.jobs.JobStatus
@@ -21,9 +22,6 @@ data class ClaimedJob(
     val version: Long,
     val attemptRowId: Long,
 )
-
-/** How an attempt ended, as stored in `job_attempts.outcome`. */
-enum class AttemptOutcome { SUCCEEDED, TEMPORARY_FAILURE, PERMANENT_FAILURE, LEASE_EXPIRED }
 
 /** The worker's SQL. Every state change checks `status = 'RUNNING'` and the version, so a worker that lost its lease changes nothing. */
 @Component

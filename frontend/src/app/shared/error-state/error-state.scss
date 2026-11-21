@@ -1,0 +1,20 @@
+.error {
+  padding: var(--sluice-space-lg);
+  border-radius: var(--sluice-space-sm);
+  background: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+}
+
+.title {
+  margin: 0 0 var(--sluice-space-sm);
+  font: var(--mat-sys-title-medium);
+}
+
+.detail,
+.reference {
+  margin: 0 0 var(--sluice-space-md);
+}
+
+.reference {
+  font: var(--mat-sys-body-small);
+}
