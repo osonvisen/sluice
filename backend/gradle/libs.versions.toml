@@ -2,9 +2,9 @@
 # Kotlin is kept on the version Spring Boot manages (kotlin-bom in the Boot BOM) so the
 # compiler plugin and stdlib/reflect never drift apart.
 kotlin = "2.3.21"
-spring-boot = "4.1.2"
+spring-boot = "4.2.0"
 spring-dependency-management = "1.1.7"
-springdoc = "3.2.0"
+springdoc = "3.2.1"
 konsist = "0.18.1"
 wiremock = "3.13.2"
 detekt = "2.0.0-alpha.6"
